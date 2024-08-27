@@ -1,0 +1,8 @@
+[package]
+name = "ftk"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+forgedtiles = { version = "0.1.0", path = "../forgedtiles" }
+png = "0.17.5"

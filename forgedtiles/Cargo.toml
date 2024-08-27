@@ -1,0 +1,14 @@
+[package]
+name = "forgedtiles"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+maths-rs = { version = "0.2.6", features = [
+    "short_types",
+    "short_hand_constructors",
+    "casts",
+    "serde",
+    "hash",
+] }
+rayon = "1"
