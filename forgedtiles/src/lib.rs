@@ -50,7 +50,7 @@ impl ForgedTiles {
     }
 
     /// Compile the given code.
-    pub fn compile_code(&self, code: String, file_name: String) -> Result<FTContext, FTError> {
+    pub fn compile_code(&self, code: String, _file_name: String) -> Result<FTContext, FTError> {
         let mut compiler = Compiler::new();
         compiler.compile(code)
     }

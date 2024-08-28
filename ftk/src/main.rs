@@ -8,7 +8,7 @@ fn main() {
 
     let file_name = "main.ft";
     let width = 600_usize;
-    let height = 400_usize;
+    let height = 600_usize;
 
     let rc = ft.compile(PathBuf::new(), file_name.into());
 

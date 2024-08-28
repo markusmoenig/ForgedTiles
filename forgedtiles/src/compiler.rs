@@ -36,10 +36,13 @@ pub struct Compiler {
 
     parser: Parser,
 
-    elements2d: Vec<String>,
-    objects3d: Vec<String>,
-
     curr_parent: Option<usize>,
+}
+
+impl Default for Compiler {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl Compiler {
@@ -47,19 +50,6 @@ impl Compiler {
         Self {
             scanner: Scanner::new("".to_string()),
             parser: Parser::new(),
-
-            elements2d: vec![
-                "Texture".to_string(),
-                "Vertical".to_string(),
-                "Color".to_string(),
-                "Noise".to_string(),
-                "Bricks".to_string(),
-            ],
-            objects3d: vec![
-                "Voxel".to_string(),
-                "sdfCube".to_string(),
-                "sdfSphere".to_string(),
-            ],
 
             curr_parent: None,
         }
@@ -118,14 +108,19 @@ impl Compiler {
 
                 match node_type.as_str() {
                     "Shape" => {
+                        if self.check(TokenType::Star) {
+                            ctx.output = Some(ctx.nodes.len());
+                            self.advance();
+                        }
+
                         self.consume(TokenType::Less, "Expected '<'.");
                         if let Some(shape) = self.consume(
                             TokenType::Identifier,
                             "Expected a valid shape after 'Shape'.",
                         ) {
                             match shape.as_str() {
-                                "Rect" => {
-                                    node = Some(Node::new(NodeRole::Shape, NodeSubRole::Rect));
+                                "Box" => {
+                                    node = Some(Node::new(NodeRole::Shape, NodeSubRole::Box));
                                 }
                                 "Disc" => {
                                     node = Some(Node::new(NodeRole::Shape, NodeSubRole::Disc));
@@ -135,6 +130,10 @@ impl Compiler {
                         }
                     }
                     "Pattern" => {
+                        if self.check(TokenType::Star) {
+                            ctx.output = Some(ctx.nodes.len());
+                            self.advance();
+                        }
                         self.consume(TokenType::Less, "Expected '<'.");
                         if let Some(shape) = self.consume(
                             TokenType::Identifier,
@@ -142,10 +141,10 @@ impl Compiler {
                         ) {
                             match shape.as_str() {
                                 "Bricks" => {
-                                    node = Some(Node::new(NodeRole::Shape, NodeSubRole::Bricks));
+                                    node = Some(Node::new(NodeRole::Pattern, NodeSubRole::Bricks));
                                 }
                                 "Tiles" => {
-                                    node = Some(Node::new(NodeRole::Shape, NodeSubRole::Tiles));
+                                    node = Some(Node::new(NodeRole::Pattern, NodeSubRole::Tiles));
                                 }
                                 _ => {
                                     self.error_at_current(&format!("Unknown pattern '{}'.", shape))
@@ -182,7 +181,7 @@ impl Compiler {
     }
 
     /// Parses the properties for the given node.
-    fn parse_node_properties(&mut self, node: &mut Node, ctx: &mut FTContext) {
+    fn parse_node_properties(&mut self, node: &mut Node, _ctx: &mut FTContext) {
         if self.check(TokenType::Colon) {
             self.advance();
         }
@@ -264,7 +263,7 @@ impl Compiler {
     }
 
     /// Prints the current Token.
-    fn debug_current(&mut self, msg: &str) {
+    fn _debug_current(&mut self, msg: &str) {
         println!("{} {:?}", msg, self.parser.current);
     }
 
@@ -305,7 +304,7 @@ impl Compiler {
     }
 
     /// get_The indent level of the current token.
-    fn indent(&self) -> usize {
+    fn _indent(&self) -> usize {
         self.parser.current.indent
     }
 

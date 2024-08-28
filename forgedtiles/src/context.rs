@@ -31,30 +31,32 @@ impl FTContext {
     }
 
     pub fn render(&self, width: usize, height: usize, buffer: &mut Vec<u8>) {
-        const LINES: usize = 20;
+        let w = width as f32;
+        let h = height as f32;
+
+        if self.nodes.is_empty() {
+            return;
+        }
+        let output = self.output.unwrap_or(self.nodes.len() - 1);
 
         buffer
-            .par_rchunks_exact_mut(width * LINES * 3)
+            .par_rchunks_exact_mut(width * 3)
             .enumerate()
             .for_each(|(j, line)| {
                 for (i, pixel) in line.chunks_exact_mut(3).enumerate() {
-                    let i = (LINES - j - 1) * width * LINES + i;
+                    let i = j * width + i;
                     let x = (i % width) as f32;
                     let y = (i / width) as f32;
 
-                    let xx = x / width as f32;
-                    let yy = 1.0 - y / height as f32;
+                    // let xx = x / w;
+                    // let yy = y / h;
 
-                    // vec2 p = (2.0*fragCoord-iResolution.xy)/iResolution.y;
-
-                    //let ratio = width as f32 / height as f32;
-
-                    let p = //vec2f(x, height as f32 - y);
-                    (2.0 * vec2f(x, y) - vec2f(width as f32, height as f32)) / height as f32;
-                    //let p = vec2f(x - width as f32 / 2.0, y - height as f32 / 2.0);
+                    // let p = vec2f(xx, yy);
                     let mut color = vec3f(0.0, 0.0, 0.0);
 
-                    let d = sdf_box2d(p, 0.5, 0.5); // - 0.2;
+                    let p = (2.0 * vec2f(x, y) - vec2f(w, h)) / h;
+
+                    let d = self.nodes[output].distance(p);
                     if d < 0.0 {
                         color.x = 1.0;
                     }

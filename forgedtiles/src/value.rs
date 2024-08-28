@@ -1,4 +1,4 @@
-use crate::prelude::*;
+// use crate::prelude::*;
 
 use FTValueRole::*;
 
@@ -6,6 +6,7 @@ use FTValueRole::*;
 pub enum FTValueRole {
     Width,
     Height,
+    Radius,
 }
 
 impl FTValueRole {
@@ -13,6 +14,7 @@ impl FTValueRole {
         match s {
             "width" => Some(Width),
             "height" => Some(Height),
+            "radius" => Some(Radius),
             _ => None,
         }
     }
