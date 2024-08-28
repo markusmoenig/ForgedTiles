@@ -95,7 +95,7 @@ impl Compiler {
                 ));
             }
 
-            if self.parser.error.is_some() {
+            if self.has_error() {
                 break;
             }
         }
@@ -127,34 +127,61 @@ impl Compiler {
                                 "Rect" => {
                                     node = Some(Node::new(NodeRole::Shape, NodeSubRole::Rect));
                                 }
+                                "Disc" => {
+                                    node = Some(Node::new(NodeRole::Shape, NodeSubRole::Disc));
+                                }
                                 _ => self.error_at_current(&format!("Unknown shape '{}'.", shape)),
                             }
                         }
-                        self.consume(TokenType::Greater, "Expected '>'.");
-
-                        // Add the new node to the context.
-                        if let Some(node) = &mut node {
-                            node.name = target.clone();
-                            ctx.variables.insert(target, ctx.nodes.len());
-
-                            self.parse_node_properties(node, ctx);
-                            match &node.role {
-                                NodeRole::Shape => {
-                                    ctx.shapes.push(ctx.nodes.len());
+                    }
+                    "Pattern" => {
+                        self.consume(TokenType::Less, "Expected '<'.");
+                        if let Some(shape) = self.consume(
+                            TokenType::Identifier,
+                            "Expected a valid pattern after 'Pattern'.",
+                        ) {
+                            match shape.as_str() {
+                                "Bricks" => {
+                                    node = Some(Node::new(NodeRole::Shape, NodeSubRole::Bricks));
+                                }
+                                "Tiles" => {
+                                    node = Some(Node::new(NodeRole::Shape, NodeSubRole::Tiles));
+                                }
+                                _ => {
+                                    self.error_at_current(&format!("Unknown pattern '{}'.", shape))
                                 }
                             }
-                            ctx.nodes.push(node.clone());
                         }
                     }
                     _ => {
                         self.error_at_current(&format!("Unknown type '{}'.", node_type));
                     }
                 }
+                self.consume(TokenType::Greater, "Expected '>'.");
+
+                if !self.has_error() {
+                    // Add the new node to the context.
+                    if let Some(node) = &mut node {
+                        node.name = target.clone();
+                        ctx.variables.insert(target, ctx.nodes.len());
+
+                        self.parse_node_properties(node, ctx);
+                        match &node.role {
+                            NodeRole::Shape => {
+                                ctx.shapes.push(ctx.nodes.len());
+                            }
+                            NodeRole::Pattern => {
+                                ctx.patterns.push(ctx.nodes.len());
+                            }
+                        }
+                        ctx.nodes.push(node.clone());
+                    }
+                }
             }
         }
     }
 
-    /// Parses the properties for the given object
+    /// Parses the properties for the given node.
     fn parse_node_properties(&mut self, node: &mut Node, ctx: &mut FTContext) {
         if self.check(TokenType::Colon) {
             self.advance();
@@ -164,20 +191,14 @@ impl Compiler {
             if self.check(TokenType::Semicolon) {
                 self.advance();
                 break;
-            }
-
-            if self.check(TokenType::Comma) {
+            } else if self.check(TokenType::Comma) {
                 self.advance();
-            }
-
-            if self.check(TokenType::Eof) {
+            } else if self.check(TokenType::Eof) {
                 break;
-            }
-
-            if let Some(property) = self.consume(
+            } else if let Some(property) = self.consume(
                 TokenType::Identifier,
                 &format!(
-                    "Expected property identifier, got '{}'.",
+                    "Expected property identifier, got '{}'. Missing ';' after declaration ?.",
                     self.parser.current.lexeme
                 ),
             ) {
@@ -189,98 +210,23 @@ impl Compiler {
                             self.error_at_current(&format!("Unknown property {}", property));
                         }
                     }
+                } else if self.check(TokenType::Identifier) {
+                    let map_value = self.parser.current.lexeme.clone();
+                    println!("{} = {}", property, map_value);
+                    node.map.insert(property, vec![map_value]);
+                } else {
+                    self.error_at_current(&format!(
+                        "Unknown property value, got '{}'.",
+                        self.parser.current.lexeme
+                    ));
+                    break;
                 }
                 self.advance();
-            }
-        }
-
-        return;
-
-        node.indent = self.parser.current.indent;
-        //println!("object on line {}", self.parser.current.line);
-
-        if self.check(TokenType::Star) {
-            ctx.output = Some(ctx.nodes.len());
-            self.advance();
-        }
-
-        loop {
-            let property = self.parser.current.lexeme.to_lowercase();
-            let indention = self.parser.current.indent;
-
-            if indention < node.indent || self.parser.current.kind == TokenType::Eof {
-                self.debug_current(format!("prop break for {}", node.name).as_str());
-                break;
-            }
-
-            self.consume(TokenType::Identifier, "Expected identifier.");
-
-            if self.check(TokenType::Equal) {
-                let value = self.scanner.scanline(1);
-                println!(
-                    "assignment to {:?}, line {}: {} = {}",
-                    node.role, self.parser.current.line, property, value
-                );
-
-                if property == "name" {
-                    node.name = value;
-                } else if let Ok(number) = value.parse::<f32>() {
-                    if !node.values.add_string_based(&property, vec![number]) {
-                        self.error_at_current(&format!("Unknown property {}", property));
-                    }
-                } else if value.starts_with('#') {
-                    //println!("Color {}", value);
-                    let mut chars = value.chars();
-                    chars.next();
-                    let color = chars.as_str();
-
-                    // use colors_transform::Rgb;
-
-                    // if let Some(rgb) = Rgb::from_hex_str(color).ok() {
-                    //     println!("{:?}", rgb);
-                    //     value = format!(
-                    //         "F4({:.3}, {:.3}, {:.3}, 1.0)",
-                    //         rgb.get_red() as F / 255.0,
-                    //         rgb.get_green() as F / 255.0,
-                    //         rgb.get_blue() as F / 255.0
-                    //     );
-                    //     println!("{}", value);
-                    // }
-                }
-                //props.push(Property::Property(property, value));
-                self.advance();
-                // if self.indent() == 0 {
-                //     break;
-                // }
-            }
-            // else if self.check(TokenType::LeftParen) {
-            //     let mut args = "".to_string();
-            //     self.advance();
-            //     loop {
-            //         if self.check(TokenType::Identifier) {
-            //             args += self.parser.current.lexeme.clone().as_str();
-            //             self.advance();
-            //         } else if self.check(TokenType::RightParen) {
-            //             break;
-            //         } else if self.check(TokenType::Comma) {
-            //             args += ",";
-            //             self.advance();
-            //         } else {
-            //             self.error_at_current("Invalid function arguments");
-            //             break;
-            //         }
-            //     }
-            //     let code = self.scanner.scan_indention_block(1, indention);
-            //     //println!("function, line {}: {}, {:?}", line, args, code.ok());
-            //     if let Some(code) = code.ok() {
-            //         props.push(Property::Function(property, args, code));
-            //     }
-            //     self.advance();
-            //     if self.indent() <= node.indent {
-            //         break;
-            //     }
-            // }
-            else {
+            } else {
+                self.error_at_current(&format!(
+                    "Unknown property ('{}'). Missing ';' after declaration ?.",
+                    self.parser.current.lexeme
+                ));
                 break;
             }
         }

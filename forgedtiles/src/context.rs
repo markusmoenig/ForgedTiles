@@ -4,6 +4,7 @@ use rayon::prelude::*;
 pub struct FTContext {
     pub nodes: Vec<Node>,
     pub shapes: Vec<usize>,
+    pub patterns: Vec<usize>,
 
     pub variables: FxHashMap<String, usize>,
 
@@ -21,6 +22,7 @@ impl FTContext {
         Self {
             nodes: vec![],
             shapes: vec![],
+            patterns: vec![],
 
             variables: FxHashMap::default(),
 

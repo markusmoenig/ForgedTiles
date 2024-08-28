@@ -3,11 +3,16 @@ use crate::prelude::*;
 #[derive(PartialEq, Clone, Debug)]
 pub enum NodeRole {
     Shape,
+    Pattern,
 }
 
 #[derive(PartialEq, Clone, Debug)]
 pub enum NodeSubRole {
     Rect,
+    Disc,
+
+    Bricks,
+    Tiles,
 }
 
 use NodeRole::*;
@@ -20,6 +25,8 @@ pub struct Node {
     pub name: String,
     pub values: FTValues,
 
+    pub map: FxHashMap<String, Vec<String>>,
+
     pub indent: usize,
 }
 
@@ -31,6 +38,8 @@ impl Node {
 
             name: "".to_string(),
             values: FTValues::default(),
+
+            map: FxHashMap::default(),
 
             indent: 0,
         }
