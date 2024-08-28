@@ -16,6 +16,7 @@ pub mod prelude {
     pub use crate::value::*;
     pub use crate::ForgedTiles;
     pub use maths_rs::prelude::*;
+    pub use rustc_hash::*;
 }
 
 use compiler::Compiler;

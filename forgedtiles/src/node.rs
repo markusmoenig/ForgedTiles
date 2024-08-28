@@ -5,47 +5,34 @@ pub enum NodeRole {
     Shape,
 }
 
+#[derive(PartialEq, Clone, Debug)]
+pub enum NodeSubRole {
+    Rect,
+}
+
 use NodeRole::*;
 
 #[derive(Debug, Clone)]
 pub struct Node {
     pub role: NodeRole,
+    pub sub_role: NodeSubRole,
 
     pub name: String,
-    pub childs: Vec<usize>,
-    pub elements: Vec<usize>,
-
     pub values: FTValues,
-
-    //pub object: Object,
-    pub texture: Option<usize>,
 
     pub indent: usize,
 }
 
 impl Node {
-    pub fn new(role: NodeRole) -> Self {
+    pub fn new(role: NodeRole, sub_role: NodeSubRole) -> Self {
         Self {
             role,
-            name: "".to_string(),
-            childs: vec![],
-            elements: vec![],
+            sub_role,
 
+            name: "".to_string(),
             values: FTValues::default(),
 
-            //object: Object::Empty,
-            texture: None,
             indent: 0,
         }
     }
-
-    // Returns the type of the node object.
-    // pub fn get_node_type(&self) -> NodeType {
-    //     match &self.object {
-    //         Object::AnalyticalObject(_v) => Object3D,
-    //         Object::SDF3D(_v) => Object3D,
-    //         Object::Element2D(_v) => Element2D,
-    //         _ => Unknown,
-    //     }
-    // }
 }

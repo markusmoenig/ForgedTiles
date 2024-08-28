@@ -12,3 +12,4 @@ maths-rs = { version = "0.2.6", features = [
     "hash",
 ] }
 rayon = "1"
+rustc-hash = "1.1.0"

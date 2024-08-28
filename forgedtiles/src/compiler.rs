@@ -65,13 +65,14 @@ impl Compiler {
         }
     }
 
+    /// Compile the given code.
     pub fn compile(&mut self, code: String) -> Result<FTContext, FTError> {
         let mut context = FTContext::new();
 
         self.scanner = Scanner::new(code);
 
         self.curr_parent = None;
-        self.add_to_context(&mut context);
+        self.parse(&mut context);
 
         if self.parser.error.is_some() {
             Err(self.parser.error.clone().unwrap())
@@ -80,39 +81,18 @@ impl Compiler {
         }
     }
 
-    pub fn add_to_context(&mut self, ctx: &mut FTContext) {
+    /// Parse the code and add the content to the context.
+    pub fn parse(&mut self, ctx: &mut FTContext) {
         self.advance();
 
         while !self.matches(TokenType::Eof) {
-            let mut consumed = false;
-
-            if self.indent() == 0 {
-                if self.parser.current.indent == 0 {
-                    self.curr_parent = None;
-                }
-
-                if self.parser.current.kind == TokenType::Identifier {
-                    let id = self.parser.current.lexeme.as_str();
-
-                    match id {
-                        "Shape" => {
-                            let mut node = Node::new(NodeRole::Shape);
-                            self.advance();
-                            self.parse_node_properties(&mut node, ctx);
-                            consumed = true;
-
-                            ctx.shapes.push(ctx.nodes.len());
-                            ctx.nodes.push(node);
-                        }
-                        _ => {
-                            self.error_at_current("Unknown node.");
-                        }
-                    }
-                }
-            }
-
-            if !consumed {
-                self.advance();
+            if self.current().kind == TokenType::Let {
+                self.declaration(ctx);
+            } else {
+                self.error_at_current(&format!(
+                    "Unknown instruction '{}'.",
+                    self.parser.current.lexeme
+                ));
             }
 
             if self.parser.error.is_some() {
@@ -121,8 +101,101 @@ impl Compiler {
         }
     }
 
+    /// Declaration (let)
+    fn declaration(&mut self, ctx: &mut FTContext) {
+        //println!("declaration");
+
+        self.advance();
+        if let Some(target) =
+            self.consume(TokenType::Identifier, "Expected an identifier after 'let'.")
+        {
+            self.consume(TokenType::Equal, "Expected '='.");
+
+            if let Some(node_type) =
+                self.consume(TokenType::Identifier, "Expected an identifier after 'let'.")
+            {
+                let mut node: Option<Node> = None;
+
+                match node_type.as_str() {
+                    "Shape" => {
+                        self.consume(TokenType::Less, "Expected '<'.");
+                        if let Some(shape) = self.consume(
+                            TokenType::Identifier,
+                            "Expected a valid shape after 'Shape'.",
+                        ) {
+                            match shape.as_str() {
+                                "Rect" => {
+                                    node = Some(Node::new(NodeRole::Shape, NodeSubRole::Rect));
+                                }
+                                _ => self.error_at_current(&format!("Unknown shape '{}'.", shape)),
+                            }
+                        }
+                        self.consume(TokenType::Greater, "Expected '>'.");
+
+                        // Add the new node to the context.
+                        if let Some(node) = &mut node {
+                            node.name = target.clone();
+                            ctx.variables.insert(target, ctx.nodes.len());
+
+                            self.parse_node_properties(node, ctx);
+                            match &node.role {
+                                NodeRole::Shape => {
+                                    ctx.shapes.push(ctx.nodes.len());
+                                }
+                            }
+                            ctx.nodes.push(node.clone());
+                        }
+                    }
+                    _ => {
+                        self.error_at_current(&format!("Unknown type '{}'.", node_type));
+                    }
+                }
+            }
+        }
+    }
+
     /// Parses the properties for the given object
     fn parse_node_properties(&mut self, node: &mut Node, ctx: &mut FTContext) {
+        if self.check(TokenType::Colon) {
+            self.advance();
+        }
+
+        loop {
+            if self.check(TokenType::Semicolon) {
+                self.advance();
+                break;
+            }
+
+            if self.check(TokenType::Comma) {
+                self.advance();
+            }
+
+            if self.check(TokenType::Eof) {
+                break;
+            }
+
+            if let Some(property) = self.consume(
+                TokenType::Identifier,
+                &format!(
+                    "Expected property identifier, got '{}'.",
+                    self.parser.current.lexeme
+                ),
+            ) {
+                self.consume(TokenType::Equal, "Expected '=' after property name.");
+                if self.check(TokenType::Number) {
+                    if let Ok(number) = self.parser.current.lexeme.parse::<f32>() {
+                        println!("{} = {}", property, number);
+                        if !node.values.add_string_based(&property, vec![number]) {
+                            self.error_at_current(&format!("Unknown property {}", property));
+                        }
+                    }
+                }
+                self.advance();
+            }
+        }
+
+        return;
+
         node.indent = self.parser.current.indent;
         //println!("object on line {}", self.parser.current.line);
 
@@ -227,7 +300,7 @@ impl Compiler {
     }
 
     /// Advance one token and allow whitespace
-    fn advance_with_whitespace(&mut self) {
+    fn _advance_with_whitespace(&mut self) {
         self.parser.previous = self.parser.current.clone();
 
         loop {
@@ -239,24 +312,32 @@ impl Compiler {
         }
     }
 
+    /// Return a reference to the current token.
+    fn current(&self) -> &Token {
+        &self.parser.current
+    }
+
     /// Prints the current Token.
     fn debug_current(&mut self, msg: &str) {
         println!("{} {:?}", msg, self.parser.current);
     }
 
-    /// Consume the current token if the type matches
-    fn consume(&mut self, kind: TokenType, message: &str) {
+    /// Consume the current token if the type matches and return it's lexeme.
+    fn consume(&mut self, kind: TokenType, message: &str) -> Option<String> {
         if self.parser.current.kind == kind {
+            let lex = self.parser.current.lexeme.clone();
             self.advance();
-            return;
+            Some(lex)
+        } else {
+            self.error_at_current(message);
+            None
         }
-        self.error_at_current(message);
     }
 
     /// Consume the current token if the type matches
     fn _consume_with_whitespace(&mut self, kind: TokenType, message: &str) {
         if self.parser.current.kind == kind {
-            self.advance_with_whitespace();
+            self._advance_with_whitespace();
             return;
         }
         self.error_at_current(message);
@@ -290,6 +371,11 @@ impl Compiler {
     /// Error at the previous token
     fn _error(&mut self, message: &str) {
         self.error_at(self.parser.previous.clone(), message)
+    }
+
+    /// Returns true if we had an error during parsing.
+    fn has_error(&self) -> bool {
+        self.parser.error.is_some()
     }
 
     /// Error at the given token

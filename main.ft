@@ -1,3 +1,4 @@
-Shape
-    width = 30
-    height = 20
+let rect1 = Shape<Rect> : width = 10, height = 20;
+let rect2 = Shape<Rect> : width = 40, height = 50;
+
+dwad
