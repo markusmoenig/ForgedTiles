@@ -152,6 +152,41 @@ impl Compiler {
                             }
                         }
                     }
+                    "Face" => {
+                        if self.check(TokenType::Star) {
+                            ctx.output = Some(ctx.nodes.len());
+                            self.advance();
+                        }
+                        self.consume(TokenType::Less, "Expected '<'.");
+                        if let Some(face) = self
+                            .consume(TokenType::Identifier, "Expected a valid face after 'Face'.")
+                        {
+                            match face.as_str() {
+                                "Floor" => {
+                                    node = Some(Node::new(NodeRole::Face, NodeSubRole::Floor));
+                                }
+                                "Left" => {
+                                    node = Some(Node::new(NodeRole::Face, NodeSubRole::Left));
+                                }
+                                "Top" => {
+                                    node = Some(Node::new(NodeRole::Face, NodeSubRole::Top));
+                                }
+                                "Right" => {
+                                    node = Some(Node::new(NodeRole::Face, NodeSubRole::Right));
+                                }
+                                "Bottom" => {
+                                    node = Some(Node::new(NodeRole::Face, NodeSubRole::Bottom));
+                                }
+                                "MiddleX" => {
+                                    node = Some(Node::new(NodeRole::Face, NodeSubRole::MiddleX));
+                                }
+                                "MiddleY" => {
+                                    node = Some(Node::new(NodeRole::Face, NodeSubRole::MiddleY));
+                                }
+                                _ => self.error_at_current(&format!("Unknown face '{}'.", face)),
+                            }
+                        }
+                    }
                     _ => {
                         self.error_at_current(&format!("Unknown type '{}'.", node_type));
                     }
@@ -172,6 +207,9 @@ impl Compiler {
                             NodeRole::Pattern => {
                                 ctx.patterns.push(ctx.nodes.len());
                             }
+                            NodeRole::Face => {
+                                ctx.patterns.push(ctx.nodes.len());
+                            }
                         }
                         ctx.nodes.push(node.clone());
                     }
@@ -181,7 +219,7 @@ impl Compiler {
     }
 
     /// Parses the properties for the given node.
-    fn parse_node_properties(&mut self, node: &mut Node, _ctx: &mut FTContext) {
+    fn parse_node_properties(&mut self, node: &mut Node, ctx: &mut FTContext) {
         if self.check(TokenType::Colon) {
             self.advance();
         }
@@ -209,10 +247,18 @@ impl Compiler {
                             self.error_at_current(&format!("Unknown property {}", property));
                         }
                     }
+                    self.advance();
                 } else if self.check(TokenType::Identifier) {
                     let map_value = self.parser.current.lexeme.clone();
-                    println!("{} = {}", property, map_value);
-                    node.map.insert(property, vec![map_value]);
+                    if property == "content" {
+                        self.advance();
+
+                        node.links = self.read_string_list_as_ref_list(map_value, ctx);
+                        println!("{} = {:?}", property, node.links);
+                    } else {
+                        node.map.insert(property, vec![map_value]);
+                        self.advance();
+                    }
                 } else {
                     self.error_at_current(&format!(
                         "Unknown property value, got '{}'.",
@@ -220,7 +266,6 @@ impl Compiler {
                     ));
                     break;
                 }
-                self.advance();
             } else {
                 self.error_at_current(&format!(
                     "Unknown property ('{}'). Missing ';' after declaration ?.",
@@ -229,6 +274,37 @@ impl Compiler {
                 break;
             }
         }
+    }
+
+    /// Read a comma separated list of strings and take their references as link list.
+    pub fn read_string_list_as_ref_list(&mut self, first: String, ctx: &FTContext) -> Vec<u16> {
+        let mut list: Vec<String> = vec![first];
+        loop {
+            if self.check(TokenType::Comma) {
+                self.advance();
+            } else if self.check(TokenType::Eof) {
+                break;
+            }
+
+            if self.check(TokenType::Identifier) {
+                list.push(self.current().lexeme.clone());
+                self.advance();
+            } else {
+                break;
+            }
+        }
+
+        let mut values: Vec<u16> = vec![];
+
+        for i in list {
+            if let Some(value) = ctx.variables.get(&i) {
+                values.push(*value as u16);
+            } else {
+                self.error_at_current(&format!("Unknown variable ('{}').", i));
+            }
+        }
+
+        values
     }
 
     /// Advance one token

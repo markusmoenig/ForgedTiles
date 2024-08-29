@@ -13,3 +13,6 @@ maths-rs = { version = "0.2.6", features = [
 ] }
 rayon = "1"
 rustc-hash = "1.1.0"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+rand = "0.8.5"

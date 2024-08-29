@@ -1,6 +1,9 @@
+pub mod bsdf;
+pub mod camera;
 pub mod compiler;
 pub mod context;
 pub mod node;
+pub mod ray;
 pub mod scanner;
 pub mod sdf;
 pub mod value;
@@ -8,14 +11,20 @@ pub mod value;
 use std::path::PathBuf;
 
 pub mod prelude {
+    pub use ::serde::{Deserialize, Serialize};
+
+    pub use crate::bsdf::*;
+    pub use crate::camera::*;
     pub use crate::compiler::FTError;
     pub use crate::context::FTContext;
     pub use crate::node::*;
+    pub use crate::ray::Ray;
     pub use crate::scanner::*;
     pub use crate::sdf::*;
     pub use crate::value::*;
     pub use crate::ForgedTiles;
     pub use maths_rs::prelude::*;
+    pub use rand::prelude::*;
     pub use rustc_hash::*;
 }
 

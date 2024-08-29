@@ -2,11 +2,13 @@
 
 use FTValueRole::*;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum FTValueRole {
     Width,
     Height,
     Radius,
+    Extrude,
+    Content,
 }
 
 impl FTValueRole {
@@ -15,6 +17,8 @@ impl FTValueRole {
             "width" => Some(Width),
             "height" => Some(Height),
             "radius" => Some(Radius),
+            "extrude" => Some(Extrude),
+            "content" => Some(Content),
             _ => None,
         }
     }
@@ -49,5 +53,15 @@ impl FTValues {
         } else {
             false
         }
+    }
+
+    /// Get the values of the given role or return the default value.
+    pub fn get(&self, role: FTValueRole, default: Vec<f32>) -> Vec<f32> {
+        for (r, values) in &self.values {
+            if *r == role {
+                return values.clone();
+            }
+        }
+        default.clone()
     }
 }
