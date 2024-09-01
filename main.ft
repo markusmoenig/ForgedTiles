@@ -1,6 +1,6 @@
 let box = Shape<Box> : width = 0.4, height = 0.4;
 let disc = Shape<Disc> : radius = 0.5;
 
-let pattern = Pattern<Bricks> : shape = box;
+let pattern = Pattern<Bricks>;
 
-let face = Face<MiddleY> : extrude = 0.1, content = pattern, box;
+let face = Face*<MiddleX> : extrude = 0.1, content = pattern;

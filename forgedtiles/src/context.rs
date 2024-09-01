@@ -1,8 +1,12 @@
 use core::f32;
 
+pub use crate::bsdf::*;
+pub use crate::camera::*;
 use crate::prelude::*;
+pub use crate::ray::Ray;
 use rayon::prelude::*;
 
+#[derive(Clone, Debug)]
 pub struct FTContext {
     pub nodes: Vec<Node>,
     pub shapes: Vec<usize>,
@@ -34,9 +38,9 @@ impl FTContext {
         }
     }
 
-    pub fn distance_to_face(&self, p: Vec3f, face_index: usize) -> f32 {
-        let index = self.faces[face_index];
-        let indices = &self.nodes[index].links;
+    pub fn distance_to_face(&self, p: Vec3f, face_index: usize, tile_id: Vec2f) -> f32 {
+        let face_index = self.faces[face_index];
+        let indices = &self.nodes[face_index].links;
 
         fn op_extrusion_x(p: Vec3f, d: f32, h: f32) -> f32 {
             let w = Vec2f::new(d, abs(p.x) - h);
@@ -52,18 +56,58 @@ impl FTContext {
         let mut dist_2d_min = f32::MAX;
 
         for index in indices {
-            let d = self.nodes[*index as usize].distance(vec2f(p.x, p.y));
-            dist_2d_min = min(dist_2d_min, d);
-            // if d < 0.0 && d < dist_2d_min {
-            //     dist_2d_min = d;
-            // }
+            let half_length = self.nodes[face_index]
+                .values
+                .get(FTValueRole::Length, vec![1.0])[0]
+                / 2.0;
+
+            let (p, pos) = match &self.nodes[face_index].sub_role {
+                NodeSubRole::MiddleX => (vec2f(p.x, p.y), vec2f(tile_id.x + half_length, 0.5)),
+                _ => (Vec2f::zero(), Vec2f::zero()),
+            };
+            let d = self.nodes[*index as usize].distance(p, pos);
+            dist_2d_min = min(dist_2d_min, d.0);
         }
 
-        let dist = op_extrusion_z(p, dist_2d_min, 0.2);
-        dist
+        op_extrusion_z(p - vec3f(0.0, 0.0, tile_id.y + 0.5), dist_2d_min, 0.2)
     }
 
-    pub fn render(&self, width: usize, height: usize, buffer: &mut Vec<u8>) {
+    pub fn meta_data_at(
+        &self,
+        x: i32,
+        y: i32,
+        width: usize,
+        height: usize,
+    ) -> Option<(f32, usize, usize)> {
+        if self.nodes.is_empty() {
+            return None;
+        }
+        let output = self.output.unwrap_or(self.nodes.len() - 1);
+        let indices = &self.nodes[output].links;
+
+        let w = width as f32;
+        let h = height as f32;
+
+        let p = (2.0 * vec2f(x as f32, h - y as f32) - vec2f(w, h)) / h;
+
+        let mut dist = (f32::MAX, -1);
+        let mut hit_index: Option<usize> = None;
+        for index in indices {
+            let d = self.nodes[*index as usize].distance(p, Vec2f::zero());
+            if d.0 < 0.0 && d.0 < dist.0 {
+                dist = d;
+                hit_index = Some(*index as usize);
+            }
+        }
+
+        if let Some(hit_index) = hit_index {
+            Some((dist.0, hit_index, dist.1 as usize))
+        } else {
+            None
+        }
+    }
+
+    pub fn render(&self, width: usize, height: usize, buffer: &mut [u8]) {
         let w = width as f32;
         let h = height as f32;
 
@@ -71,13 +115,24 @@ impl FTContext {
             return;
         }
         let output = self.output.unwrap_or(self.nodes.len() - 1);
-        let indices = self.nodes[output].content_indices(output);
+        let indices = &self.nodes[output].links;
+
+        let wd = self.nodes[output]
+            .values
+            .get(FTValueRole::Length, vec![1.0])[0];
+        let hd = self.nodes[output]
+            .values
+            .get(FTValueRole::Height, vec![1.0])[0];
+
+        let pc_x = w / wd;
+        let pc_y = h / hd;
+        println!("wd {}", wd);
 
         buffer
-            .par_rchunks_exact_mut(width * 3)
+            .par_rchunks_exact_mut(width * 4)
             .enumerate()
             .for_each(|(j, line)| {
-                for (i, pixel) in line.chunks_exact_mut(3).enumerate() {
+                for (i, pixel) in line.chunks_exact_mut(4).enumerate() {
                     let i = j * width + i;
                     let x = (i % width) as f32;
                     let y = (i / width) as f32;
@@ -88,15 +143,15 @@ impl FTContext {
                     // let p = vec2f(xx, yy);
                     let mut color = vec3f(0.0, 0.0, 0.0);
 
-                    let p = (2.0 * vec2f(x, y) - vec2f(w, h)) / h;
+                    let mut p = (2.0 * vec2f(x, y) - vec2f(w, h)) / h;
 
                     let mut dist = f32::MAX;
                     let mut hit_index: Option<usize> = None;
-                    for index in &indices {
-                        let d = self.nodes[*index].distance(p);
+                    for index in indices {
+                        let d = self.nodes[*index as usize].distance(p, Vec2f::zero()).0;
                         if d < 0.0 && d < dist {
                             dist = d;
-                            hit_index = Some(*index);
+                            hit_index = Some(*index as usize);
                             color.x = 1.0;
                         }
                     }
@@ -105,6 +160,7 @@ impl FTContext {
                         (color.x * 255.0) as u8,
                         (color.y * 255.0) as u8,
                         (color.z * 255.0) as u8,
+                        255,
                     ];
 
                     pixel.copy_from_slice(&out);
@@ -197,8 +253,8 @@ impl FTContext {
                             let mut dist_2d_min = f32::MAX;
 
                             for index in &indices {
-                                let d = self.nodes[*index].distance(vec2f(p.x, p.y));
-                                dist_2d_min = min(dist_2d_min, d);
+                                let d = self.nodes[*index].distance(vec2f(p.x, p.y), Vec2f::zero());
+                                dist_2d_min = min(dist_2d_min, d.0);
                                 // if d < 0.0 && d < dist_2d_min {
                                 //     dist_2d_min = d;
                                 // }

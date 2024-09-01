@@ -1,4 +1,5 @@
 use crate::prelude::*;
+pub use crate::ray::Ray;
 use core::f32;
 use std::f32::consts::PI;
 

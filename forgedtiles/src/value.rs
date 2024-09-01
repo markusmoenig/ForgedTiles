@@ -7,8 +7,9 @@ pub enum FTValueRole {
     Width,
     Height,
     Radius,
-    Extrude,
+    Thickness,
     Content,
+    Length,
 }
 
 impl FTValueRole {
@@ -17,8 +18,9 @@ impl FTValueRole {
             "width" => Some(Width),
             "height" => Some(Height),
             "radius" => Some(Radius),
-            "extrude" => Some(Extrude),
+            "thickness" => Some(Thickness),
             "content" => Some(Content),
+            "length" => Some(Length),
             _ => None,
         }
     }

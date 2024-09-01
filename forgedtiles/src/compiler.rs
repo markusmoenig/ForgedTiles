@@ -161,6 +161,7 @@ impl Compiler {
                         if let Some(face) = self
                             .consume(TokenType::Identifier, "Expected a valid face after 'Face'.")
                         {
+                            println!("{}", face);
                             match face.as_str() {
                                 "Floor" => {
                                     node = Some(Node::new(NodeRole::Face, NodeSubRole::Floor));
@@ -208,7 +209,7 @@ impl Compiler {
                                 ctx.patterns.push(ctx.nodes.len());
                             }
                             NodeRole::Face => {
-                                ctx.patterns.push(ctx.nodes.len());
+                                ctx.faces.push(ctx.nodes.len());
                             }
                         }
                         ctx.nodes.push(node.clone());

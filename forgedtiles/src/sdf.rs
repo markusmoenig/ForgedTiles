@@ -18,7 +18,7 @@ pub fn rot(a: f32) -> Mat2f {
 }
 
 #[inline(always)]
-pub fn sdf_box2d(p: Vec2f, width: f32, height: f32, r: f32) -> f32 {
-    let d = abs(p) - vec2f(width, height) + vec2f(r, r);
+pub fn sdf_box2d(p: Vec2f, pos: Vec2f, width: f32, height: f32, r: f32) -> f32 {
+    let d = abs(p - pos) - vec2f(width, height) + vec2f(r, r);
     length(max(d, Vec2f::zero())) + min(max(d.x, d.y), 0.0) - r
 }

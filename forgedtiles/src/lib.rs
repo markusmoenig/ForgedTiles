@@ -13,14 +13,10 @@ use std::path::PathBuf;
 pub mod prelude {
     pub use ::serde::{Deserialize, Serialize};
 
-    pub use crate::bsdf::*;
-    pub use crate::camera::*;
     pub use crate::compiler::FTError;
     pub use crate::context::FTContext;
     pub use crate::node::*;
-    pub use crate::ray::Ray;
     pub use crate::scanner::*;
-    pub use crate::sdf::*;
     pub use crate::value::*;
     pub use crate::ForgedTiles;
     pub use maths_rs::prelude::*;
@@ -49,7 +45,7 @@ impl ForgedTiles {
         let main_path = path.join(file_name.clone());
 
         if let Ok(code) = std::fs::read_to_string(main_path) {
-            self.compile_code(code, file_name.to_string())
+            self.compile_code(code)
         } else {
             Err(FTError::new(
                 format!("Error reading file `{}`", file_name),
@@ -59,7 +55,7 @@ impl ForgedTiles {
     }
 
     /// Compile the given code.
-    pub fn compile_code(&self, code: String, _file_name: String) -> Result<FTContext, FTError> {
+    pub fn compile_code(&self, code: String) -> Result<FTContext, FTError> {
         let mut compiler = Compiler::new();
         compiler.compile(code)
     }

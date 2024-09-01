@@ -14,15 +14,15 @@ fn main() {
 
     match rc {
         Ok(ctx) => {
-            let mut buffer = vec![0; width * height * 3];
-            ctx.render_bsdf_sample(width, height, &mut buffer, 0);
+            let mut buffer = vec![0; width * height * 4];
+            ctx.render(width, height, &mut buffer);
 
             let path = "image.png";
             let file = File::create(path).unwrap();
             let w = BufWriter::new(file);
 
             let mut encoder = png::Encoder::new(w, width as u32, height as u32);
-            encoder.set_color(png::ColorType::Rgb);
+            encoder.set_color(png::ColorType::Rgba);
             encoder.set_depth(png::BitDepth::Eight);
             encoder
                 .add_text_chunk(

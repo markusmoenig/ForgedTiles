@@ -77,12 +77,12 @@ impl Node {
         }
     }
 
-    pub fn distance(&self, p: Vec2f) -> f32 {
+    pub fn distance(&self, p: Vec2f, pos: Vec2f) -> (f32, i32) {
         match &self.role {
             Shape => match &self.sub_role {
-                Disc => length(p) - 0.5,
-                Box => sdf_box2d(p, 0.5, 0.5, 0.0),
-                _ => f32::MAX,
+                Disc => (length(p) - 0.5, 0),
+                Box => (crate::sdf::sdf_box2d(p, pos, 0.5, 0.5, 0.0), 0),
+                _ => (f32::MAX, -1),
             },
             Pattern => match &self.sub_role {
                 Bricks => {
@@ -90,9 +90,9 @@ impl Node {
                     let round = 0.0; //params[1];
                     let rotation = 0.1; //params[2];
                     let gap = 0.1; //params[3];
-                    let cell = 6.0; //params[4];
+                    let cell = 3.0; //params[4];
 
-                    let mut u = p + 10.0;
+                    let mut u = p - pos + 10.0;
 
                     let w = vec2f(ratio, 1.0);
                     u *= vec2f(cell, cell) / w;
@@ -100,19 +100,22 @@ impl Node {
                     u.x += 0.5 * u.y.floor() % 2.0;
 
                     // let id = hash21(floor(u));
-                    let id_float = hash21(floor(u));
+                    let id_float = crate::sdf::hash21(floor(u));
 
-                    // let id = (id_float * 10000.0).floor() as i32;
-                    // let id = id % 10000;
+                    let id = (id_float * 10000.0).floor() as i32;
+                    let id = id % 10000;
 
                     let mut p = frac(u);
-                    p = rot((id_float - 0.5) * rotation) * (p - 0.5);
-                    sdf_box2d(p, 0.5 - gap, 0.5 - gap, round)
+                    p = crate::sdf::rot((id_float - 0.5) * rotation) * (p - 0.5);
+                    (
+                        crate::sdf::sdf_box2d(p, Vec2f::zero(), 0.5 - gap, 0.5 - gap, round),
+                        id,
+                    )
                 }
-                Tiles => f32::MAX,
-                _ => f32::MAX,
+                Tiles => (f32::MAX, 0),
+                _ => (f32::MAX, 0),
             },
-            Face => f32::MAX,
+            Face => (f32::MAX, 0),
         }
     }
 
