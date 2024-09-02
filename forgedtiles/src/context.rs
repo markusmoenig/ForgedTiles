@@ -39,6 +39,10 @@ impl FTContext {
     }
 
     pub fn distance_to_face(&self, p: Vec3f, face_index: usize, tile_id: Vec2f) -> f32 {
+        if face_index >= self.faces.len() - 1 || self.faces.is_empty() {
+            return f32::MAX;
+        }
+
         let face_index = self.faces[face_index];
         let indices = &self.nodes[face_index].links;
 
