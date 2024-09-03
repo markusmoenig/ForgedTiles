@@ -7,6 +7,7 @@ pub enum NodeRole {
     Shape,
     Pattern,
     Face,
+    Material,
 }
 
 #[derive(PartialEq, Clone, Debug)]
@@ -24,8 +25,11 @@ pub enum NodeSubRole {
     Bottom,
     MiddleX,
     MiddleY,
+
+    BSDF,
 }
 
+use FTValueRole::*;
 use NodeRole::*;
 use NodeSubRole::*;
 
@@ -42,6 +46,8 @@ pub struct Node {
     pub map: FxHashMap<String, Vec<String>>,
     /// Array of indices to other nodes.
     pub links: Vec<u16>,
+    /// Material index
+    pub material: Option<u8>,
 }
 
 impl Node {
@@ -55,6 +61,8 @@ impl Node {
             values: FTValues::default(),
             map: FxHashMap::default(),
             links: vec![],
+
+            material: None,
         }
     }
 
@@ -86,11 +94,11 @@ impl Node {
             },
             Pattern => match &self.sub_role {
                 Bricks => {
-                    let ratio = 3.0; //params[0];
-                    let round = 0.0; //params[1];
-                    let rotation = 0.1; //params[2];
-                    let gap = 0.1; //params[3];
-                    let cell = 3.0; //params[4];
+                    let ratio = self.values.get(Ratio, vec![3.0])[0];
+                    let round = self.values.get(Rounding, vec![0.0])[0];
+                    let rotation = self.values.get(Rotation, vec![1.0])[0] / 10.0;
+                    let gap = self.values.get(Gap, vec![1.0])[0] / 10.0;
+                    let cell = self.values.get(Cell, vec![3.0])[0];
 
                     let mut u = p - pos + 10.0;
 
@@ -115,7 +123,7 @@ impl Node {
                 Tiles => (f32::MAX, 0),
                 _ => (f32::MAX, 0),
             },
-            Face => (f32::MAX, 0),
+            _ => (f32::MAX, 0),
         }
     }
 

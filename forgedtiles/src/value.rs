@@ -4,23 +4,35 @@ use FTValueRole::*;
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum FTValueRole {
+    Color,
     Width,
     Height,
     Radius,
     Thickness,
     Content,
     Length,
+    Ratio,
+    Rotation,
+    Rounding,
+    Gap,
+    Cell,
 }
 
 impl FTValueRole {
     pub fn from_string(s: &str) -> Option<FTValueRole> {
         match s {
+            "color" => Some(Color),
             "width" => Some(Width),
             "height" => Some(Height),
             "radius" => Some(Radius),
             "thickness" => Some(Thickness),
             "content" => Some(Content),
             "length" => Some(Length),
+            "ratio" => Some(Ratio),
+            "rotation" => Some(Rotation),
+            "rounding" => Some(Rounding),
+            "gap" => Some(Gap),
+            "cell" => Some(Cell),
             _ => None,
         }
     }

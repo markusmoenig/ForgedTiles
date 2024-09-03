@@ -9,9 +9,10 @@ use rayon::prelude::*;
 #[derive(Clone, Debug)]
 pub struct FTContext {
     pub nodes: Vec<Node>,
-    pub shapes: Vec<usize>,
-    pub patterns: Vec<usize>,
-    pub faces: Vec<usize>,
+    pub shapes: Vec<u8>,
+    pub patterns: Vec<u8>,
+    pub faces: Vec<u8>,
+    pub materials: Vec<u8>,
 
     pub variables: FxHashMap<String, usize>,
 
@@ -31,6 +32,7 @@ impl FTContext {
             shapes: vec![],
             patterns: vec![],
             faces: vec![],
+            materials: vec![],
 
             variables: FxHashMap::default(),
 
@@ -44,7 +46,7 @@ impl FTContext {
         }
 
         let face_index = self.faces[face_index];
-        let indices = &self.nodes[face_index].links;
+        let indices = &self.nodes[face_index as usize].links;
 
         fn op_extrusion_x(p: Vec3f, d: f32, h: f32) -> f32 {
             let w = Vec2f::new(d, abs(p.x) - h);
@@ -60,12 +62,12 @@ impl FTContext {
         let mut dist_2d_min = f32::MAX;
 
         for index in indices {
-            let half_length = self.nodes[face_index]
+            let half_length = self.nodes[face_index as usize]
                 .values
                 .get(FTValueRole::Length, vec![1.0])[0]
                 / 2.0;
 
-            let (p, pos) = match &self.nodes[face_index].sub_role {
+            let (p, pos) = match &self.nodes[face_index as usize].sub_role {
                 NodeSubRole::MiddleX => (vec2f(p.x, p.y), vec2f(tile_id.x + half_length, 0.5)),
                 _ => (Vec2f::zero(), Vec2f::zero()),
             };
@@ -76,13 +78,25 @@ impl FTContext {
         op_extrusion_z(p - vec3f(0.0, 0.0, tile_id.y + 0.5), dist_2d_min, 0.2)
     }
 
-    pub fn meta_data_at(
-        &self,
-        x: i32,
-        y: i32,
-        width: usize,
-        height: usize,
-    ) -> Option<(f32, usize, usize)> {
+    pub fn face_normal(&self, p: Vec3f, face_index: usize, tile_id: Vec2f) -> Vec3f {
+        let scale = 0.5773 * 0.0005;
+        let e = vec2f(1.0 * scale, -1.0 * scale);
+
+        // IQs normal function
+
+        let e1 = vec3f(e.x, e.y, e.y);
+        let e2 = vec3f(e.y, e.y, e.x);
+        let e3 = vec3f(e.y, e.x, e.y);
+        let e4 = vec3f(e.x, e.x, e.x);
+
+        let n = e1 * self.distance_to_face(p + e1, face_index, tile_id)
+            + e2 * self.distance_to_face(p + e2, face_index, tile_id)
+            + e3 * self.distance_to_face(p + e3, face_index, tile_id)
+            + e4 * self.distance_to_face(p + e4, face_index, tile_id);
+        normalize(n)
+    }
+
+    pub fn meta_data_at(&self, x: i32, y: i32, width: usize, height: usize) -> Option<FTHitStruct> {
         if self.nodes.is_empty() {
             return None;
         }
@@ -104,11 +118,11 @@ impl FTContext {
             }
         }
 
-        if let Some(hit_index) = hit_index {
-            Some((dist.0, hit_index, dist.1 as usize))
-        } else {
-            None
-        }
+        hit_index.map(|index| FTHitStruct {
+            distance: dist.0,
+            node: index,
+            pattern_id: dist.1,
+        })
     }
 
     pub fn render(&self, width: usize, height: usize, buffer: &mut [u8]) {
@@ -121,16 +135,15 @@ impl FTContext {
         let output = self.output.unwrap_or(self.nodes.len() - 1);
         let indices = &self.nodes[output].links;
 
-        let wd = self.nodes[output]
-            .values
-            .get(FTValueRole::Length, vec![1.0])[0];
-        let hd = self.nodes[output]
-            .values
-            .get(FTValueRole::Height, vec![1.0])[0];
+        // let wd = self.nodes[output]
+        //     .values
+        //     .get(FTValueRole::Length, vec![1.0])[0];
+        // let hd = self.nodes[output]
+        //     .values
+        //     .get(FTValueRole::Height, vec![1.0])[0];
 
-        let pc_x = w / wd;
-        let pc_y = h / hd;
-        println!("wd {}", wd);
+        // let pc_x = w / wd;
+        // let pc_y = h / hd;
 
         buffer
             .par_rchunks_exact_mut(width * 4)
@@ -147,7 +160,7 @@ impl FTContext {
                     // let p = vec2f(xx, yy);
                     let mut color = vec3f(0.0, 0.0, 0.0);
 
-                    let mut p = (2.0 * vec2f(x, y) - vec2f(w, h)) / h;
+                    let p = (2.0 * vec2f(x, y) - vec2f(w, h)) / h;
 
                     let mut dist = f32::MAX;
                     let mut hit_index: Option<usize> = None;
@@ -156,7 +169,19 @@ impl FTContext {
                         if d < 0.0 && d < dist {
                             dist = d;
                             hit_index = Some(*index as usize);
-                            color.x = 1.0;
+                        }
+                    }
+
+                    if let Some(hit_index) = hit_index {
+                        if let Some(material) = self.nodes[hit_index].material {
+                            let col = self.nodes[material as usize]
+                                .values
+                                .get(FTValueRole::Color, vec![0.5, 0.5, 0.5]);
+                            color[0] = col[0];
+                            color[1] = col[1];
+                            color[2] = col[2];
+                        } else {
+                            color = vec3f(0.5, 0.5, 0.5);
                         }
                     }
 

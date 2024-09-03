@@ -161,7 +161,6 @@ impl Compiler {
                         if let Some(face) = self
                             .consume(TokenType::Identifier, "Expected a valid face after 'Face'.")
                         {
-                            println!("{}", face);
                             match face.as_str() {
                                 "Floor" => {
                                     node = Some(Node::new(NodeRole::Face, NodeSubRole::Floor));
@@ -188,6 +187,26 @@ impl Compiler {
                             }
                         }
                     }
+                    "Material" => {
+                        if self.check(TokenType::Star) {
+                            ctx.output = Some(ctx.nodes.len());
+                            self.advance();
+                        }
+                        self.consume(TokenType::Less, "Expected '<'.");
+                        if let Some(shape) = self.consume(
+                            TokenType::Identifier,
+                            "Expected a valid material after 'Material'.",
+                        ) {
+                            match shape.as_str() {
+                                "BSDF" => {
+                                    node = Some(Node::new(NodeRole::Material, NodeSubRole::BSDF));
+                                }
+                                _ => {
+                                    self.error_at_current(&format!("Unknown material '{}'.", shape))
+                                }
+                            }
+                        }
+                    }
                     _ => {
                         self.error_at_current(&format!("Unknown type '{}'.", node_type));
                     }
@@ -203,13 +222,16 @@ impl Compiler {
                         self.parse_node_properties(node, ctx);
                         match &node.role {
                             NodeRole::Shape => {
-                                ctx.shapes.push(ctx.nodes.len());
+                                ctx.shapes.push(ctx.nodes.len() as u8);
                             }
                             NodeRole::Pattern => {
-                                ctx.patterns.push(ctx.nodes.len());
+                                ctx.patterns.push(ctx.nodes.len() as u8);
                             }
                             NodeRole::Face => {
-                                ctx.faces.push(ctx.nodes.len());
+                                ctx.faces.push(ctx.nodes.len() as u8);
+                            }
+                            NodeRole::Material => {
+                                ctx.materials.push(ctx.nodes.len() as u8);
                             }
                         }
                         ctx.nodes.push(node.clone());
@@ -243,7 +265,7 @@ impl Compiler {
                 self.consume(TokenType::Equal, "Expected '=' after property name.");
                 if self.check(TokenType::Number) {
                     if let Ok(number) = self.parser.current.lexeme.parse::<f32>() {
-                        println!("{} = {}", property, number);
+                        //println!("{} = {}", property, number);
                         if !node.values.add_string_based(&property, vec![number]) {
                             self.error_at_current(&format!("Unknown property {}", property));
                         }
@@ -251,11 +273,28 @@ impl Compiler {
                     self.advance();
                 } else if self.check(TokenType::Identifier) {
                     let map_value = self.parser.current.lexeme.clone();
-                    if property == "content" {
+                    if property == "material" {
+                        self.advance();
+
+                        if map_value.to_lowercase() == "none" {
+                            continue;
+                        } else if let Some(value) = ctx.variables.get(&map_value) {
+                            node.material = Some(*value as u8);
+                        } else {
+                            self.error_at_current(&format!("Unknown variable ('{}').", map_value));
+                        }
+                    } else if property == "color" {
+                        if let Some(color) = self.hex_to_rgb_normalized(&map_value) {
+                            node.values.add(FTValueRole::Color, color);
+                        } else {
+                            self.error_at_current(&format!("Invalid hex color {}", map_value));
+                        }
+                        self.advance();
+                    } else if property == "content" {
                         self.advance();
 
                         node.links = self.read_string_list_as_ref_list(map_value, ctx);
-                        println!("{} = {:?}", property, node.links);
+                        //println!("{} = {:?}", property, node.links);
                     } else {
                         node.map.insert(property, vec![map_value]);
                         self.advance();
@@ -306,6 +345,22 @@ impl Compiler {
         }
 
         values
+    }
+
+    /// Read a hex color.
+    fn hex_to_rgb_normalized(&self, hex: &str) -> Option<Vec<f32>> {
+        // Ensure the string is exactly 6 characters long
+        if hex.len() != 6 {
+            return None;
+        }
+
+        // Try to parse the red, green, and blue components
+        let r = u8::from_str_radix(&hex[0..2], 16).ok()?;
+        let g = u8::from_str_radix(&hex[2..4], 16).ok()?;
+        let b = u8::from_str_radix(&hex[4..6], 16).ok()?;
+
+        // Normalize the values to the range [0.0, 1.0]
+        Some(vec![r as f32 / 255.0, g as f32 / 255.0, b as f32 / 255.0])
     }
 
     /// Advance one token
