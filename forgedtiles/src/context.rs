@@ -40,13 +40,30 @@ impl FTContext {
         }
     }
 
-    pub fn distance_to_face(&self, p: Vec3f, face_index: usize, tile_id: Vec2f) -> f32 {
+    /// Get the distance to a face.
+    pub fn distance_to_face(&self, p: Vec3f, face_index: usize, tile_id: Vec2f) -> FTHitStruct {
+        let mut hit = FTHitStruct::default();
         if face_index >= self.faces.len() - 1 || self.faces.is_empty() {
-            return f32::MAX;
+            hit.distance = f32::MAX;
+            return hit;
         }
 
         let face_index = self.faces[face_index];
         let indices = &self.nodes[face_index as usize].links;
+
+        let face_length = self.nodes[face_index as usize]
+            .values
+            .get(FTValueRole::Length, vec![1.0])[0];
+
+        let face_height = self.nodes[face_index as usize]
+            .values
+            .get(FTValueRole::Height, vec![1.0])[0];
+
+        let face_thickness = self.nodes[face_index as usize]
+            .values
+            .get(FTValueRole::Thickness, vec![0.2])[0];
+
+        hit.face = vec3f(face_length, face_height, face_thickness);
 
         fn op_extrusion_x(p: Vec3f, d: f32, h: f32) -> f32 {
             let w = Vec2f::new(d, abs(p.x) - h);
@@ -58,26 +75,69 @@ impl FTContext {
             min(max(w.x, w.y), 0.0) + length(max(w, Vec2f::zero()))
         }
 
-        //let mut dist = f32::MAX;
+        // Get the 2D positiion and the 2D offset based on the wall type.
+        let half_length = face_length / 2.0;
+        let (p2d, pos) = match &self.nodes[face_index as usize].sub_role {
+            NodeSubRole::MiddleX | NodeSubRole::Bottom | NodeSubRole::Top => (
+                vec2f(p.x, p.y),
+                vec2f(tile_id.x + half_length, face_height / 2.0),
+            ),
+            NodeSubRole::MiddleY | NodeSubRole::Left | NodeSubRole::Right => (
+                vec2f(p.z, p.y),
+                vec2f(tile_id.y + half_length, face_height / 2.0),
+            ),
+            _ => (Vec2f::zero(), Vec2f::zero()),
+        };
+
+        //let bb = crate::sdf::sdf_box2d(p2d, pos, half_length, 0.5, 0.0);
         let mut dist_2d_min = f32::MAX;
 
         for index in indices {
-            let half_length = self.nodes[face_index as usize]
-                .values
-                .get(FTValueRole::Length, vec![1.0])[0]
-                / 2.0;
-
-            let (p, pos) = match &self.nodes[face_index as usize].sub_role {
-                NodeSubRole::MiddleX => (vec2f(p.x, p.y), vec2f(tile_id.x + half_length, 0.5)),
-                _ => (Vec2f::zero(), Vec2f::zero()),
-            };
-            let d = self.nodes[*index as usize].distance(p, pos);
-            dist_2d_min = min(dist_2d_min, d.0);
+            self.nodes[*index as usize].distance(p2d, pos, &mut hit);
+            if hit.distance <= dist_2d_min {
+                dist_2d_min = hit.distance;
+                hit.node = *index as usize;
+            }
         }
 
-        op_extrusion_z(p - vec3f(0.0, 0.0, tile_id.y + 0.5), dist_2d_min, 0.2)
+        // Extrude in the direction of the face
+        hit.distance = match &self.nodes[face_index as usize].sub_role {
+            NodeSubRole::Left => op_extrusion_x(
+                p - vec3f(tile_id.x + face_thickness / 2.0, 0.0, 0.0),
+                dist_2d_min,
+                face_thickness,
+            ),
+            NodeSubRole::MiddleY => op_extrusion_x(
+                p - vec3f(tile_id.x + 0.5, 0.0, 0.0),
+                dist_2d_min,
+                face_thickness,
+            ),
+            NodeSubRole::Right => op_extrusion_x(
+                p - vec3f(tile_id.x + 1.0 - face_thickness / 2.0, 0.0, 0.0),
+                dist_2d_min,
+                face_thickness,
+            ),
+            NodeSubRole::Top => op_extrusion_z(
+                p - vec3f(0.0, 0.0, tile_id.y + face_thickness / 2.0),
+                dist_2d_min,
+                face_thickness,
+            ),
+            NodeSubRole::MiddleX => op_extrusion_z(
+                p - vec3f(0.0, 0.0, tile_id.y + 0.5),
+                dist_2d_min,
+                face_thickness,
+            ),
+            NodeSubRole::Bottom => op_extrusion_z(
+                p - vec3f(0.0, 0.0, tile_id.y + 1.0 - face_thickness / 2.0),
+                dist_2d_min,
+                face_thickness,
+            ),
+            _ => f32::MAX,
+        };
+        hit
     }
 
+    /// Get the face normal at the given position.
     pub fn face_normal(&self, p: Vec3f, face_index: usize, tile_id: Vec2f) -> Vec3f {
         let scale = 0.5773 * 0.0005;
         let e = vec2f(1.0 * scale, -1.0 * scale);
@@ -89,10 +149,10 @@ impl FTContext {
         let e3 = vec3f(e.y, e.x, e.y);
         let e4 = vec3f(e.x, e.x, e.x);
 
-        let n = e1 * self.distance_to_face(p + e1, face_index, tile_id)
-            + e2 * self.distance_to_face(p + e2, face_index, tile_id)
-            + e3 * self.distance_to_face(p + e3, face_index, tile_id)
-            + e4 * self.distance_to_face(p + e4, face_index, tile_id);
+        let n = e1 * self.distance_to_face(p + e1, face_index, tile_id).distance
+            + e2 * self.distance_to_face(p + e2, face_index, tile_id).distance
+            + e3 * self.distance_to_face(p + e3, face_index, tile_id).distance
+            + e4 * self.distance_to_face(p + e4, face_index, tile_id).distance;
         normalize(n)
     }
 
@@ -108,24 +168,26 @@ impl FTContext {
 
         let p = (2.0 * vec2f(x as f32, h - y as f32) - vec2f(w, h)) / h;
 
-        let mut dist = (f32::MAX, -1);
+        let mut hit = FTHitStruct::default();
+
+        let mut dist = FTHitStruct::default();
         let mut hit_index: Option<usize> = None;
         for index in indices {
-            let d = self.nodes[*index as usize].distance(p, Vec2f::zero());
-            if d.0 < 0.0 && d.0 < dist.0 {
-                dist = d;
+            self.nodes[*index as usize].distance(p, Vec2f::zero(), &mut hit);
+            if hit.distance < 0.0 && hit.distance < dist.distance {
+                dist.clone_from(&hit);
                 hit_index = Some(*index as usize);
             }
         }
 
-        hit_index.map(|index| FTHitStruct {
-            distance: dist.0,
-            node: index,
-            pattern_id: dist.1,
-        })
+        if dist.distance <= 0.0 {
+            Some(dist)
+        } else {
+            None
+        }
     }
 
-    pub fn render(&self, width: usize, height: usize, buffer: &mut [u8]) {
+    pub fn render(&self, width: usize, height: usize, buffer: &mut [u8], tile_id: Vec2f) {
         let w = width as f32;
         let h = height as f32;
 
@@ -134,6 +196,24 @@ impl FTContext {
         }
         let output = self.output.unwrap_or(self.nodes.len() - 1);
         let indices = &self.nodes[output].links;
+
+        let face: Vec3f = if self.nodes[output].role == NodeRole::Face {
+            let face_length = self.nodes[output]
+                .values
+                .get(FTValueRole::Length, vec![1.0])[0];
+
+            let face_height = self.nodes[output]
+                .values
+                .get(FTValueRole::Height, vec![1.0])[0];
+
+            let face_thickness = self.nodes[output]
+                .values
+                .get(FTValueRole::Thickness, vec![0.2])[0];
+
+            vec3f(face_length, face_height, face_thickness)
+        } else {
+            vec3f(1.0, 1.0, 1.0)
+        };
 
         // let wd = self.nodes[output]
         //     .values
@@ -162,12 +242,18 @@ impl FTContext {
 
                     let p = (2.0 * vec2f(x, y) - vec2f(w, h)) / h;
 
-                    let mut dist = f32::MAX;
+                    let mut hit = FTHitStruct {
+                        tile_id,
+                        face,
+                        ..Default::default()
+                    };
+
+                    let mut dist = FTHitStruct::default();
                     let mut hit_index: Option<usize> = None;
                     for index in indices {
-                        let d = self.nodes[*index as usize].distance(p, Vec2f::zero()).0;
-                        if d < 0.0 && d < dist {
-                            dist = d;
+                        self.nodes[*index as usize].distance(p, Vec2f::zero(), &mut hit);
+                        if hit.distance < 0.0 && hit.distance < dist.distance {
+                            dist.clone_from(&hit);
                             hit_index = Some(*index as usize);
                         }
                     }
@@ -282,8 +368,9 @@ impl FTContext {
                             let mut dist_2d_min = f32::MAX;
 
                             for index in &indices {
-                                let d = self.nodes[*index].distance(vec2f(p.x, p.y), Vec2f::zero());
-                                dist_2d_min = min(dist_2d_min, d.0);
+                                //let d = self.nodes[*index].distance(vec2f(p.x, p.y), Vec2f::zero());
+                                //dist_2d_min = min(dist_2d_min, d.0);
+
                                 // if d < 0.0 && d < dist_2d_min {
                                 //     dist_2d_min = d;
                                 // }

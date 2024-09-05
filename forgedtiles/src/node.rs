@@ -85,22 +85,37 @@ impl Node {
         }
     }
 
-    pub fn distance(&self, p: Vec2f, pos: Vec2f) -> (f32, i32) {
+    pub fn distance(&self, p: Vec2f, pos: Vec2f, hit: &mut FTHitStruct) {
+        #[allow(clippy::single_match)]
         match &self.role {
             Shape => match &self.sub_role {
-                Disc => (length(p) - 0.5, 0),
-                Box => (crate::sdf::sdf_box2d(p, pos, 0.5, 0.5, 0.0), 0),
-                _ => (f32::MAX, -1),
+                Disc => hit.distance = length(p) - 0.5,
+                Box => {
+                    let length = self.values.get(FTValueRole::Length, vec![1.0])[0];
+                    let height = self.values.get(FTValueRole::Height, vec![1.0])[0];
+                    hit.distance = crate::sdf::sdf_box2d(p, pos, length / 2.0, height / 2.0, 0.0)
+                }
+                _ => hit.distance = f32::MAX,
             },
             Pattern => match &self.sub_role {
                 Bricks => {
+                    let length = self.values.get(FTValueRole::Length, vec![1.0])[0];
+                    let height = self.values.get(FTValueRole::Height, vec![1.0])[0];
+                    let cell = self.values.get(Cell, vec![3.0])[0];
+
+                    //let height = height / cell;
+
+                    //let pos = pos
+                    hit.distance = crate::sdf::sdf_box2d(p, pos, length / 2.0, height / 2.0, 0.0)
+
+                    /*
                     let ratio = self.values.get(Ratio, vec![3.0])[0];
                     let round = self.values.get(Rounding, vec![0.0])[0];
                     let rotation = self.values.get(Rotation, vec![1.0])[0] / 10.0;
                     let gap = self.values.get(Gap, vec![1.0])[0] / 10.0;
                     let cell = self.values.get(Cell, vec![3.0])[0];
 
-                    let mut u = p - pos + 10.0;
+                    let mut u = p - pos + 10.0; // + hit.tile_id; // + vec2f(0.0, 0.5);
 
                     let w = vec2f(ratio, 1.0);
                     u *= vec2f(cell, cell) / w;
@@ -108,22 +123,23 @@ impl Node {
                     u.x += 0.5 * u.y.floor() % 2.0;
 
                     // let id = hash21(floor(u));
-                    let id_float = crate::sdf::hash21(floor(u));
+                    let hash = crate::sdf::hash21(floor(u));
 
-                    let id = (id_float * 10000.0).floor() as i32;
+                    let id = (hash * 10000.0).floor() as i32;
                     let id = id % 10000;
 
                     let mut p = frac(u);
-                    p = crate::sdf::rot((id_float - 0.5) * rotation) * (p - 0.5);
-                    (
-                        crate::sdf::sdf_box2d(p, Vec2f::zero(), 0.5 - gap, 0.5 - gap, round),
-                        id,
-                    )
+                    p = crate::sdf::rot((hash - 0.5) * rotation) * (p - 0.5);
+
+                    hit.distance =
+                        crate::sdf::sdf_box2d(p, Vec2f::zero(), 0.5 - gap, 0.5 - gap, round);
+                    hit.pattern_id = id;
+                    hit.pattern_hash = hash;
+                    */
                 }
-                Tiles => (f32::MAX, 0),
-                _ => (f32::MAX, 0),
+                _ => {}
             },
-            _ => (f32::MAX, 0),
+            _ => {}
         }
     }
 

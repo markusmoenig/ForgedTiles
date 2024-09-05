@@ -15,7 +15,7 @@ fn main() {
     match rc {
         Ok(ctx) => {
             let mut buffer = vec![0; width * height * 4];
-            ctx.render(width, height, &mut buffer);
+            ctx.render(width, height, &mut buffer, vec2f(10.0, 10.0));
 
             let path = "image.png";
             let file = File::create(path).unwrap();

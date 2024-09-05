@@ -4,4 +4,4 @@ let mat = Material<BSDF> : color = FF0000;
 
 let pattern = Pattern<Bricks> : material = mat,;
 
-let face = Face*<MiddleX> : content = pattern;
+let face = Face*<MiddleX> : content = box;
