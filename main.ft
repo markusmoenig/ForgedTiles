@@ -1,7 +1,8 @@
-let box = Shape<Box> : width = 0.4, height = 0.4;
-let disc = Shape<Disc> : radius = 0.5;
 let mat = Material<BSDF> : color = FF0000;
+let brick = Shape<Box> : material = mat, length = 0.2, height = 0.1, rounding = 0.02;
+let disc = Shape<Disc> : radius = 0.1;
 
-let pattern = Pattern<Bricks> : material = mat,;
+let brick_row = Pattern<Repeat> : content = brick;
+let brick_stack = Pattern<Stack> : content = brick_row;
 
-let face = Face*<MiddleX> : content = box;
+let face = Face<Bottom> : thickness = 0.05, content = brick_stack;

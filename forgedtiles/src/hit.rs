@@ -5,6 +5,9 @@ use crate::prelude::*;
 pub struct FTHitStruct {
     pub distance: f32,
     pub node: usize,
+
+    pub last_size: Vec2f,
+
     pub pattern_id: i32,
     pub pattern_hash: f32,
 
@@ -24,12 +27,16 @@ impl FTHitStruct {
         Self {
             distance: f32::MAX,
             node: 0,
+
+            last_size: Vec2f::zero(),
+
             pattern_id: 0,
             pattern_hash: 0.0,
 
             face: Vec3f::zero(),
 
             tile_id: Vec2f::zero(),
+
         }
     }
 }

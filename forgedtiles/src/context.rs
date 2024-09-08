@@ -1,10 +1,11 @@
-use core::f32;
-
 pub use crate::bsdf::*;
 pub use crate::camera::*;
 use crate::prelude::*;
 pub use crate::ray::Ray;
 use rayon::prelude::*;
+
+use crate::NodeRole::*;
+use crate::NodeSubRole::*;
 
 #[derive(Clone, Debug)]
 pub struct FTContext {
@@ -43,7 +44,9 @@ impl FTContext {
     /// Get the distance to a face.
     pub fn distance_to_face(&self, p: Vec3f, face_index: usize, tile_id: Vec2f) -> FTHitStruct {
         let mut hit = FTHitStruct::default();
-        if face_index >= self.faces.len() - 1 || self.faces.is_empty() {
+        if
+        /*face_index >= self.faces.len() - 1 ||*/
+        self.faces.is_empty() {
             hit.distance = f32::MAX;
             return hit;
         }
@@ -63,7 +66,7 @@ impl FTContext {
             .values
             .get(FTValueRole::Thickness, vec![0.2])[0];
 
-        hit.face = vec3f(face_length, face_height, face_thickness);
+        hit.face = vec3f(tile_id.x + face_length, face_height, face_thickness);
 
         fn op_extrusion_x(p: Vec3f, d: f32, h: f32) -> f32 {
             let w = Vec2f::new(d, abs(p.x) - h);
@@ -93,10 +96,10 @@ impl FTContext {
         let mut dist_2d_min = f32::MAX;
 
         for index in indices {
-            self.nodes[*index as usize].distance(p2d, pos, &mut hit);
+            self.distance(*index as usize, p2d, pos, &mut hit);
             if hit.distance <= dist_2d_min {
                 dist_2d_min = hit.distance;
-                hit.node = *index as usize;
+                //hit.node = *index as usize;
             }
         }
 
@@ -173,7 +176,7 @@ impl FTContext {
         let mut dist = FTHitStruct::default();
         let mut hit_index: Option<usize> = None;
         for index in indices {
-            self.nodes[*index as usize].distance(p, Vec2f::zero(), &mut hit);
+            self.distance(*index as usize, p, Vec2f::zero(), &mut hit);
             if hit.distance < 0.0 && hit.distance < dist.distance {
                 dist.clone_from(&hit);
                 hit_index = Some(*index as usize);
@@ -187,7 +190,7 @@ impl FTContext {
         }
     }
 
-    pub fn render(&self, width: usize, height: usize, buffer: &mut [u8], tile_id: Vec2f) {
+    pub fn render(&self, width: usize, height: usize, buffer: &mut [u8]) {
         let w = width as f32;
         let h = height as f32;
 
@@ -195,7 +198,11 @@ impl FTContext {
             return;
         }
         let output = self.output.unwrap_or(self.nodes.len() - 1);
-        let indices = &self.nodes[output].links;
+        let indices = if self.nodes[output].role != Face {
+            vec![output as u16]
+        } else {
+            self.nodes[output].links.clone()
+        };
 
         let face: Vec3f = if self.nodes[output].role == NodeRole::Face {
             let face_length = self.nodes[output]
@@ -234,32 +241,31 @@ impl FTContext {
                     let x = (i % width) as f32;
                     let y = (i / width) as f32;
 
-                    // let xx = x / w;
-                    // let yy = y / h;
+                    let xx = x / w;
+                    let yy = y / h;
 
-                    // let p = vec2f(xx, yy);
+                    let p = vec2f(xx, yy);
                     let mut color = vec3f(0.0, 0.0, 0.0);
 
-                    let p = (2.0 * vec2f(x, y) - vec2f(w, h)) / h;
+                    //let p = (2.0 * vec2f(x, y) - vec2f(w, h)) / h;
 
                     let mut hit = FTHitStruct {
-                        tile_id,
                         face,
                         ..Default::default()
                     };
 
                     let mut dist = FTHitStruct::default();
                     let mut hit_index: Option<usize> = None;
-                    for index in indices {
-                        self.nodes[*index as usize].distance(p, Vec2f::zero(), &mut hit);
+                    for index in &indices {
+                        self.distance(*index as usize, p, vec2f(0.5, 0.5), &mut hit);
                         if hit.distance < 0.0 && hit.distance < dist.distance {
                             dist.clone_from(&hit);
                             hit_index = Some(*index as usize);
                         }
                     }
 
-                    if let Some(hit_index) = hit_index {
-                        if let Some(material) = self.nodes[hit_index].material {
+                    if hit_index.is_some() {
+                        if let Some(material) = self.nodes[hit.node].material {
                             let col = self.nodes[material as usize]
                                 .values
                                 .get(FTValueRole::Color, vec![0.5, 0.5, 0.5]);
@@ -288,7 +294,7 @@ impl FTContext {
         width: usize,
         height: usize,
         buffer: &mut Vec<u8>,
-        sample: i32,
+        samples: i32,
     ) {
         let w = width as f32;
         let h = height as f32;
@@ -297,19 +303,22 @@ impl FTContext {
             return;
         }
 
-        let camera = Camera::new(vec3f(0., 0., 2.), Vec3f::zero(), 5.0);
+        let camera = Camera::new(vec3f(-2., -2., -2.), Vec3f::zero(), 5.0);
 
         let output = self.output.unwrap_or(self.nodes.len() - 1);
-        let indices = self.nodes[output].content_indices(output);
+        if self.nodes[output].role != NodeRole::Face {
+            println!("render_bsdf_sample:: Output is not a face.");
+            return;
+        }
 
         const EPS: f32 = 0.001;
 
         buffer
-            .par_rchunks_exact_mut(width * 3)
+            .par_rchunks_exact_mut(width * 4)
             .enumerate()
             .for_each(|(j, line)| {
                 let mut rng = rand::thread_rng();
-                for (i, pixel) in line.chunks_exact_mut(3).enumerate() {
+                for (i, pixel) in line.chunks_exact_mut(4).enumerate() {
                     let i = j * width + i;
                     let x = (i % width) as f32;
                     let y = (i / width) as f32;
@@ -317,227 +326,344 @@ impl FTContext {
                     let xx = x / w;
                     let yy = y / h;
 
-                    let mut ray = camera.create_ortho_ray(
-                        vec2f(xx, 1.0 - yy),
-                        vec2f(w, h),
-                        vec2f(rng.gen(), rng.gen()),
-                    );
+                    for sample in 0..samples {
+                        let mut ray = camera.create_ortho_ray(
+                            vec2f(xx, 1.0 - yy),
+                            vec2f(w, h),
+                            vec2f(rng.gen(), rng.gen()),
+                        );
 
-                    let mut radiance = Vec3f::zero();
-                    let mut throughput = Vec3f::one();
+                        let mut radiance = Vec3f::zero();
+                        let mut throughput = Vec3f::one();
 
-                    let mut state = BSDFState::default();
-                    //let mut light_sample = BSDFLightSampleRec::default();
-                    //let mut scatter_sample = BSDFScatterSampleRec::default();
+                        let mut state = BSDFState::default();
+                        //let mut light_sample = BSDFLightSampleRec::default();
+                        //let mut scatter_sample = BSDFScatterSampleRec::default();
 
-                    // For medium tracking
-                    let mut _in_medium = false;
-                    let mut _medium_sampled = false;
-                    let mut _surface_scatter = false;
+                        // For medium tracking
+                        let mut _in_medium = false;
+                        let mut _medium_sampled = false;
+                        let mut _surface_scatter = false;
 
-                    let mut color = Vec3f::zero();
+                        let mut color = Vec3f::zero();
 
-                    for depth in 0..8 {
-                        let mut has_hit = false;
-                        let mut hit_point = Vec3f::zero();
-                        let mut hit_distance = 0.0;
-                        let mut hit_normal = Vec3f::zero();
-                        let mut mat = BSDFMaterial::default();
-                        let mut t = 0.0;
+                        for depth in 0..8 {
+                            let mut has_hit = false;
+                            let mut hit_point = Vec3f::zero();
+                            let mut hit_distance = 0.0;
+                            let mut hit_normal = Vec3f::zero();
+                            let mut mat = BSDFMaterial::default();
+                            let mut t = 0.0;
 
-                        for _ in 0..20 {
-                            let p = ray.at(t);
+                            for _ in 0..30 {
+                                let p = ray.at(t);
 
-                            //let d = length(p) - 1.0;
+                                let ft_hit = self.distance_to_face(p, 0, Vec2f::zero());
 
-                            // if t > 3.0 {
-                            //     break;
-                            // }
+                                if t > 12.0 {
+                                    break;
+                                }
+                                //println!("aa {}", ft_hit.distance);
 
-                            fn op_extrusion_x(p: Vec3f, d: f32, h: f32) -> f32 {
-                                let w = Vec2f::new(d, abs(p.x) - h);
-                                min(max(w.x, w.y), 0.0) + length(max(w, Vec2f::zero()))
+                                if ft_hit.distance < 0.001 {
+                                    has_hit = true;
+                                    hit_point = p;
+                                    hit_distance = t;
+                                    hit_normal = self.face_normal(p, 0, Vec2f::zero());
+                                    if let Some(material) = self.nodes[ft_hit.node].material {
+                                        let col = self.nodes[material as usize]
+                                            .values
+                                            .get(FTValueRole::Color, vec![0.5, 0.5, 0.5]);
+                                        mat.base_color[0] = col[0];
+                                        mat.base_color[1] = col[1];
+                                        mat.base_color[2] = col[2];
+                                    } else {
+                                        color = vec3f(0.5, 0.5, 0.5);
+                                    }
+                                    break;
+                                }
+                                t += ft_hit.distance;
                             }
 
-                            fn op_extrusion_z(p: Vec3f, d: f32, h: f32) -> f32 {
-                                let w = Vec2f::new(d, abs(p.z) - h);
-                                min(max(w.x, w.y), 0.0) + length(max(w, Vec2f::zero()))
-                            }
+                            if has_hit {
+                                state.depth = depth;
 
-                            //let mut dist = f32::MAX;
-                            let mut dist_2d_min = f32::MAX;
+                                state.mat.clone_from(&mat);
+                                state.mat.roughness = max(state.mat.roughness, 0.001);
+                                // Remapping from clearcoat gloss to roughness
+                                state.mat.clearcoat_roughness =
+                                    lerp(0.1, 0.001, state.mat.clearcoat_roughness);
 
-                            for index in &indices {
-                                //let d = self.nodes[*index].distance(vec2f(p.x, p.y), Vec2f::zero());
-                                //dist_2d_min = min(dist_2d_min, d.0);
+                                state.hit_dist = hit_distance;
+                                state.fhp = hit_point;
 
-                                // if d < 0.0 && d < dist_2d_min {
-                                //     dist_2d_min = d;
-                                // }
-                            }
+                                state.normal = hit_normal;
+                                state.ffnormal = if dot(state.normal, ray.d) <= 0.0 {
+                                    state.normal
+                                } else {
+                                    -state.normal
+                                };
 
-                            let dist = op_extrusion_z(p, dist_2d_min, 0.2);
+                                state.eta = if dot(ray.d, state.normal) < 0.0 {
+                                    1.0 / state.mat.ior
+                                } else {
+                                    state.mat.ior
+                                };
 
-                            if dist.abs() < 0.001 {
-                                has_hit = true;
-                                hit_point = p;
-                                hit_distance = t;
-                                hit_normal = normalize(p);
-                                mat.base_color = Vec3f::one();
-                                break;
-                            }
-                            t += dist;
-                        }
+                                onb(state.normal, &mut state.tangent, &mut state.bitangent);
 
-                        if has_hit {
-                            state.depth = depth;
+                                let aspect = sqrt(1.0 - state.mat.anisotropic * 0.9);
+                                state.mat.ax = max(0.001, state.mat.roughness / aspect);
+                                state.mat.ay = max(0.001, state.mat.roughness * aspect);
 
-                            state.mat.clone_from(&mat);
-                            state.mat.roughness = max(state.mat.roughness, 0.001);
-                            // Remapping from clearcoat gloss to roughness
-                            state.mat.clearcoat_roughness =
-                                lerp(0.1, 0.001, state.mat.clearcoat_roughness);
+                                // --- Sample light
+                                //
+                                let mut light_sample = BSDFLightSampleRec::default();
+                                let mut scatter_sample = BSDFScatterSampleRec::default();
 
-                            state.hit_dist = hit_distance;
-                            state.fhp = hit_point;
+                                let scatter_pos = state.fhp + state.normal * EPS;
 
-                            state.normal = hit_normal;
-                            state.ffnormal = if dot(state.normal, ray.d) <= 0.0 {
-                                state.normal
-                            } else {
-                                -state.normal
-                            };
+                                let light_pos = vec3f(-1.0, -2.0, -3.0);
 
-                            state.eta = if dot(ray.d, state.normal) < 0.0 {
-                                1.0 / state.mat.ior
-                            } else {
-                                state.mat.ior
-                            };
+                                let radius = 0.2;
 
-                            onb(state.normal, &mut state.tangent, &mut state.bitangent);
+                                let l = BSDFLight {
+                                    position: light_pos,
+                                    emission: Vec3f::one() * 10.0,
+                                    radius,
+                                    type_: 1.0,
+                                    u: Vec3f::zero(),
+                                    v: Vec3f::zero(),
+                                    area: 4.0 * f32::pi() * radius * radius,
+                                };
 
-                            let aspect = sqrt(1.0 - state.mat.anisotropic * 0.9);
-                            state.mat.ax = max(0.001, state.mat.roughness / aspect);
-                            state.mat.ay = max(0.001, state.mat.roughness * aspect);
+                                sample_sphere_light(
+                                    &l,
+                                    scatter_pos,
+                                    &mut light_sample,
+                                    1,
+                                    &mut rng,
+                                    5.0,
+                                );
 
-                            // --- Sample light
-                            //
-                            let mut light_sample = BSDFLightSampleRec::default();
-                            let mut scatter_sample = BSDFScatterSampleRec::default();
+                                let li = light_sample.emission;
 
-                            let scatter_pos = state.fhp + state.normal * EPS;
+                                let sphere_ray = Ray::new(scatter_pos, light_sample.direction);
 
-                            let light_pos = vec3f(1.0, 0.0, 3.0);
+                                if sphere_ray.sphere(light_pos, radius).is_some() {
+                                    scatter_sample.f = disney_eval(
+                                        &state,
+                                        -ray.d,
+                                        state.ffnormal,
+                                        light_sample.direction,
+                                        &mut scatter_sample.pdf,
+                                    );
 
-                            let radius = 0.2;
+                                    let mut mis_weight = 1.0;
+                                    if l.area > 0.0 {
+                                        // No MIS for distant light
+                                        mis_weight =
+                                            power_heuristic(light_sample.pdf, scatter_sample.pdf);
+                                    }
 
-                            let l = BSDFLight {
-                                position: light_pos,
-                                emission: Vec3f::one() * 10.0,
-                                radius,
-                                type_: 1.0,
-                                u: Vec3f::zero(),
-                                v: Vec3f::zero(),
-                                area: 4.0 * f32::pi() * radius * radius,
-                            };
+                                    let mut ld = Vec3f::zero();
 
-                            sample_sphere_light(
-                                &l,
-                                scatter_pos,
-                                &mut light_sample,
-                                1,
-                                &mut rng,
-                                5.0,
-                            );
+                                    if scatter_sample.pdf > 0.0 {
+                                        ld += (mis_weight * li * scatter_sample.f
+                                            / light_sample.pdf)
+                                            * throughput;
+                                    }
 
-                            let li = light_sample.emission;
+                                    radiance += ld * throughput;
+                                }
+                                //
 
-                            let sphere_ray = Ray::new(scatter_pos, light_sample.direction);
-
-                            if sphere_ray.sphere(light_pos, radius).is_some() {
-                                scatter_sample.f = disney_eval(
+                                scatter_sample.f = disney_sample(
                                     &state,
                                     -ray.d,
                                     state.ffnormal,
-                                    light_sample.direction,
+                                    &mut scatter_sample.l,
                                     &mut scatter_sample.pdf,
+                                    &mut rng,
                                 );
-
-                                let mut mis_weight = 1.0;
-                                if l.area > 0.0 {
-                                    // No MIS for distant light
-                                    mis_weight =
-                                        power_heuristic(light_sample.pdf, scatter_sample.pdf);
-                                }
-
-                                let mut ld = Vec3f::zero();
-
                                 if scatter_sample.pdf > 0.0 {
-                                    ld += (mis_weight * li * scatter_sample.f / light_sample.pdf)
-                                        * throughput;
+                                    throughput *= scatter_sample.f / scatter_sample.pdf;
+                                } else {
+                                    break;
                                 }
 
-                                radiance += ld * throughput;
-                            }
-                            //
+                                ray.d = scatter_sample.l;
+                                ray.o = state.fhp + ray.d * 0.01;
 
-                            scatter_sample.f = disney_sample(
-                                &state,
-                                -ray.d,
-                                state.ffnormal,
-                                &mut scatter_sample.l,
-                                &mut scatter_sample.pdf,
-                                &mut rng,
-                            );
-                            if scatter_sample.pdf > 0.0 {
-                                throughput *= scatter_sample.f / scatter_sample.pdf;
+                                color.x = radiance.x;
+                                color.y = radiance.y;
+                                color.z = radiance.z;
                             } else {
+                                // Env color
+                                color.x += throughput.x * 0.5;
+                                color.y += throughput.y * 0.5;
+                                color.z += throughput.z * 0.5;
                                 break;
                             }
-
-                            ray.d = scatter_sample.l;
-                            ray.o = state.fhp + ray.d * 0.01;
-
-                            color.x = radiance.x;
-                            color.y = radiance.y;
-                            color.z = radiance.z;
-                        } else {
-                            // Env color
-                            color.x += throughput.x * 0.5;
-                            color.y += throughput.y * 0.5;
-                            color.z += throughput.z * 0.5;
-                            break;
                         }
-                    }
 
-                    fn vec3f_u8(col: Vec3f) -> [u8; 3] {
-                        [
-                            (col.x * 255.0) as u8,
-                            (col.y * 255.0) as u8,
-                            (col.z * 255.0) as u8,
-                        ]
-                    }
+                        fn vec4f_u8(col: Vec3f) -> [u8; 4] {
+                            [
+                                (col.x * 255.0) as u8,
+                                (col.y * 255.0) as u8,
+                                (col.z * 255.0) as u8,
+                                255,
+                            ]
+                        }
 
-                    if sample == 0 {
-                        pixel.copy_from_slice(&vec3f_u8(color));
-                    } else {
-                        let mut ex = Vec3f::zero();
-                        ex.x = pixel[0] as f32 / 255.0;
-                        ex.y = pixel[1] as f32 / 255.0;
-                        ex.z = pixel[2] as f32 / 255.0;
+                        if sample == 0 {
+                            pixel.copy_from_slice(&vec4f_u8(color));
+                        } else {
+                            let mut ex = Vec3f::zero();
+                            ex.x = pixel[0] as f32 / 255.0;
+                            ex.y = pixel[1] as f32 / 255.0;
+                            ex.z = pixel[2] as f32 / 255.0;
 
-                        //color = powf(color, 0.4545);
-                        //color = clamp(color, Vec4f::zero(), vec4f(1.0, 1.0, 1.0, 1.0));
+                            //color = powf(color, 0.4545);
+                            //color = clamp(color, Vec4f::zero(), vec4f(1.0, 1.0, 1.0, 1.0));
 
-                        let s = 1.0 / (sample as f32 + 1.0);
-                        let accumulated_color = lerp(ex, color, s);
-                        // let accumulated_color =
-                        //     (ex * (sample as f32) + color) / (sample as f32 + 1.0);
-                        //
-                        pixel.copy_from_slice(&vec3f_u8(accumulated_color));
+                            let s = 1.0 / (sample as f32 + 1.0);
+                            let accumulated_color = lerp(ex, color, s);
+                            // let accumulated_color =
+                            //     (ex * (sample as f32) + color) / (sample as f32 + 1.0);
+                            //
+                            pixel.copy_from_slice(&vec4f_u8(accumulated_color));
+                        }
                     }
                 }
             });
+    }
+
+    /// Returns the distance and other meta data for the given node.
+    pub fn distance(&self, index: usize, p: Vec2f, mut pos: Vec2f, hit: &mut FTHitStruct) {
+        #[allow(clippy::single_match)]
+        match &self.nodes[index].role {
+            Shape => match &self.nodes[index].sub_role {
+                Disc => {
+                    let radius = self.get_value_default(index, FTValueRole::Radius, vec![0.5])[0];
+                    let d = length(p - pos) - radius;
+                    if d < hit.distance {
+                        hit.distance = d;
+                        hit.node = index;
+                    }
+                }
+                Box => {
+                    let length = self.get_value_default(index, FTValueRole::Length, vec![1.0])[0];
+                    let height = self.get_value_default(index, FTValueRole::Height, vec![1.0])[0];
+                    let rounding =
+                        self.get_value_default(index, FTValueRole::Rounding, vec![0.0])[0];
+                    let d = crate::sdf::sdf_box2d(p, pos, length / 2.0, height / 2.0, rounding);
+                    if d < hit.distance {
+                        hit.distance = d;
+                        hit.node = index;
+                    }
+                }
+                _ => hit.distance = f32::MAX,
+            },
+            Pattern => match &self.nodes[index].sub_role {
+                Repeat => {
+                    if !self.nodes[index].links.is_empty() {
+                        let content = self.nodes[index].links[0] as usize;
+                        let length =
+                            self.get_value_default(content, FTValueRole::Length, vec![1.0])[0];
+                        let height =
+                            self.get_value_default(content, FTValueRole::Height, vec![1.0])[0];
+
+                        hit.last_size = vec2f(length, height);
+
+                        pos += vec2f(length / 2.0, height / 2.0);
+                        let mut iter = 0;
+
+                        loop {
+                            self.distance(content, p, pos, hit);
+                            if hit.distance <= 0.0 {
+                                break;
+                            }
+                            // if iter == 3 {
+                            //     break;
+                            // }
+                            pos.x += length + 0.01;
+                            if pos.x > hit.face.x {
+                                break;
+                            }
+                            iter += 1;
+                        }
+                    }
+
+                    /*
+                    let length = self.values.get(FTValueRole::Length, vec![1.0])[0];
+                    let height = self.values.get(FTValueRole::Height, vec![1.0])[0];
+                    let cell = self.values.get(Cell, vec![3.0])[0];
+
+                    //let height = height / cell;
+
+                    //let pos = pos
+                    hit.distance = crate::sdf::sdf_box2d(p, pos, length / 2.0, height / 2.0, 0.0)
+                    */
+                    /*
+                    let ratio = self.values.get(Ratio, vec![3.0])[0];
+                    let round = self.values.get(Rounding, vec![0.0])[0];
+                    let rotation = self.values.get(Rotation, vec![1.0])[0] / 10.0;
+                    let gap = self.values.get(Gap, vec![1.0])[0] / 10.0;
+                    let cell = self.values.get(Cell, vec![3.0])[0];
+
+                    let mut u = p - pos + 10.0; // + hit.tile_id; // + vec2f(0.0, 0.5);
+
+                    let w = vec2f(ratio, 1.0);
+                    u *= vec2f(cell, cell) / w;
+
+                    u.x += 0.5 * u.y.floor() % 2.0;
+
+                    // let id = hash21(floor(u));
+                    let hash = crate::sdf::hash21(floor(u));
+
+                    let id = (hash * 10000.0).floor() as i32;
+                    let id = id % 10000;
+
+                    let mut p = frac(u);
+                    p = crate::sdf::rot((hash - 0.5) * rotation) * (p - 0.5);
+
+                    hit.distance =
+                        crate::sdf::sdf_box2d(p, Vec2f::zero(), 0.5 - gap, 0.5 - gap, round);
+                    hit.pattern_id = id;
+                    hit.pattern_hash = hash;
+                    */
+                }
+                Stack => {
+                    if !self.nodes[index].links.is_empty() {
+                        let content = self.nodes[index].links[0] as usize;
+
+                        pos = Vec2f::zero();
+
+                        loop {
+                            self.distance(content, p, pos, hit);
+                            if hit.distance <= 0.0 {
+                                break;
+                            }
+                            let add_y = hit.last_size.y / 2.0 + 0.06;
+                            pos.x = 0.0;
+                            pos.y += add_y;
+                            //println!("{} {}", pos.y, hit.face.y);
+                            if pos.y > hit.face.y {
+                                break;
+                            }
+                        }
+                    }
+                }
+                _ => {}
+            },
+            _ => {}
+        }
+    }
+
+    /// Get a value from a node.
+    fn get_value_default(&self, index: usize, role: FTValueRole, default: Vec<f32>) -> Vec<f32> {
+        self.nodes[index].values.get(role, default)
     }
 }
 

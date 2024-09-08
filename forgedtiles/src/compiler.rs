@@ -140,11 +140,14 @@ impl Compiler {
                             "Expected a valid pattern after 'Pattern'.",
                         ) {
                             match shape.as_str() {
-                                "Bricks" => {
-                                    node = Some(Node::new(NodeRole::Pattern, NodeSubRole::Bricks));
+                                "Repeat" => {
+                                    node = Some(Node::new(NodeRole::Pattern, NodeSubRole::Repeat));
                                 }
-                                "Tiles" => {
-                                    node = Some(Node::new(NodeRole::Pattern, NodeSubRole::Tiles));
+                                "Offset" => {
+                                    node = Some(Node::new(NodeRole::Pattern, NodeSubRole::Offset));
+                                }
+                                "Stack" => {
+                                    node = Some(Node::new(NodeRole::Pattern, NodeSubRole::Stack));
                                 }
                                 _ => {
                                     self.error_at_current(&format!("Unknown pattern '{}'.", shape))
