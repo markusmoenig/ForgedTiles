@@ -14,8 +14,8 @@ pub enum FTValueRole {
     Ratio,
     Rotation,
     Rounding,
-    Gap,
-    Cell,
+    Spacing,
+    Offset,
 }
 
 impl FTValueRole {
@@ -31,8 +31,8 @@ impl FTValueRole {
             "ratio" => Some(Ratio),
             "rotation" => Some(Rotation),
             "rounding" => Some(Rounding),
-            "gap" => Some(Gap),
-            "cell" => Some(Cell),
+            "spacing" => Some(Spacing),
+            "offset" => Some(Offset),
             _ => None,
         }
     }

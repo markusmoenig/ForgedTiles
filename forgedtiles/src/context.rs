@@ -99,9 +99,20 @@ impl FTContext {
             self.distance(*index as usize, p2d, pos, &mut hit);
             if hit.distance <= dist_2d_min {
                 dist_2d_min = hit.distance;
-                //hit.node = *index as usize;
             }
         }
+
+        // Clip 2D output to the face
+        dist_2d_min = max(
+            dist_2d_min,
+            crate::sdf::sdf_box2d(
+                p2d,
+                vec2f(hit.face.x / 2.0, hit.face.y / 2.0),
+                hit.face.x / 2.0,
+                hit.face.y / 2.0,
+                0.0,
+            ),
+        );
 
         // Extrude in the direction of the face
         hit.distance = match &self.nodes[face_index as usize].sub_role {
@@ -221,16 +232,6 @@ impl FTContext {
         } else {
             vec3f(1.0, 1.0, 1.0)
         };
-
-        // let wd = self.nodes[output]
-        //     .values
-        //     .get(FTValueRole::Length, vec![1.0])[0];
-        // let hd = self.nodes[output]
-        //     .values
-        //     .get(FTValueRole::Height, vec![1.0])[0];
-
-        // let pc_x = w / wd;
-        // let pc_y = h / hd;
 
         buffer
             .par_rchunks_exact_mut(width * 4)
@@ -568,31 +569,45 @@ impl FTContext {
             Pattern => match &self.nodes[index].sub_role {
                 Repeat => {
                     if !self.nodes[index].links.is_empty() {
+                        fn op_rep(p: Vec2f, s: f32) -> Vec2f {
+                            vec2f(p.x - s * round(p.x / s), p.y)
+                        }
                         let content = self.nodes[index].links[0] as usize;
-                        let length =
-                            self.get_value_default(content, FTValueRole::Length, vec![1.0])[0];
-                        let height =
-                            self.get_value_default(content, FTValueRole::Height, vec![1.0])[0];
+                        let dim = self.get_dim_default(content);
+                        let spacing =
+                            self.get_value_default(index, FTValueRole::Spacing, vec![0.0])[0];
+                        let offset =
+                            self.get_value_default(index, FTValueRole::Offset, vec![0.0])[0];
 
-                        hit.last_size = vec2f(length, height);
+                        hit.last_size = dim;
+                        pos += vec2f(0.0, dim.y / 2.0);
 
+                        let r = op_rep(
+                            p - vec2f(dim.x / 2.0 - offset * dim.x, 0.0),
+                            dim.x + spacing,
+                        );
+                        self.distance(content, r, pos, hit);
+
+                        /*
                         pos += vec2f(length / 2.0, height / 2.0);
                         let mut iter = 0;
 
                         loop {
+                            //if pos.x < p.x + length {
                             self.distance(content, p, pos, hit);
                             if hit.distance <= 0.0 {
                                 break;
                             }
+                            //}
                             // if iter == 3 {
                             //     break;
                             // }
                             pos.x += length + 0.01;
-                            if pos.x > hit.face.x {
+                            if pos.x > hit.face.x || pos.x - length / 2.0 > p.x {
                                 break;
                             }
                             iter += 1;
-                        }
+                        }*/
                     }
 
                     /*
@@ -636,22 +651,30 @@ impl FTContext {
                 }
                 Stack => {
                     if !self.nodes[index].links.is_empty() {
-                        let content = self.nodes[index].links[0] as usize;
+                        let spacing =
+                            self.get_value_default(index, FTValueRole::Spacing, vec![0.0])[0];
 
                         pos = Vec2f::zero();
+                        let mut counter = 0;
 
                         loop {
+                            let content = self.nodes[index].links
+                                [counter % self.nodes[index].links.len()]
+                                as usize;
+
+                            if pos.y + hit.last_size.y > hit.face.y || pos.y > p.y {
+                                break;
+                            }
+
                             self.distance(content, p, pos, hit);
                             if hit.distance <= 0.0 {
                                 break;
                             }
-                            let add_y = hit.last_size.y / 2.0 + 0.06;
+                            let add_y = hit.last_size.y + spacing;
                             pos.x = 0.0;
                             pos.y += add_y;
-                            //println!("{} {}", pos.y, hit.face.y);
-                            if pos.y > hit.face.y {
-                                break;
-                            }
+
+                            counter += 1;
                         }
                     }
                 }
@@ -664,6 +687,11 @@ impl FTContext {
     /// Get a value from a node.
     fn get_value_default(&self, index: usize, role: FTValueRole, default: Vec<f32>) -> Vec<f32> {
         self.nodes[index].values.get(role, default)
+    }
+
+    /// Get the dimension of a node.
+    fn get_dim_default(&self, index: usize) -> Vec2f {
+        self.nodes[index].get_shape_dim()
     }
 }
 

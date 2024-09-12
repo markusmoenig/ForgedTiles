@@ -15,8 +15,10 @@ fn main() {
     match rc {
         Ok(ctx) => {
             let mut buffer = vec![0; width * height * 4];
-            // ctx.render(width, height, &mut buffer);
-            ctx.render_bsdf_sample(width, height, &mut buffer, 1);
+            let start = get_time();
+            ctx.render(width, height, &mut buffer);
+            // ctx.render_bsdf_sample(width, height, &mut buffer, 1);
+            println!("Image rendered in {} ms", get_time() - start);
 
             let path = "image.png";
             let file = File::create(path).unwrap();
@@ -42,5 +44,20 @@ fn main() {
         Err(err) => {
             println!("{:?}", err);
         }
+    }
+}
+
+/// Gets the current time in milliseconds
+pub fn get_time() -> u128 {
+    #[cfg(target_arch = "wasm32")]
+    {
+        web_sys::window().unwrap().performance().unwrap().now() as u128
+    }
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        let stop = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect("Time went backwards");
+        stop.as_millis()
     }
 }

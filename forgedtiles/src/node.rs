@@ -28,7 +28,7 @@ pub enum NodeSubRole {
     BSDF,
 }
 
-use FTValueRole::*;
+//use FTValueRole::*;
 use NodeRole::*;
 use NodeSubRole::*;
 
@@ -84,10 +84,22 @@ impl Node {
         }
     }
 
-    // pub fn distance_3d(&self, p: Vec3f) -> f32 {
-    //     match &self.role {
-    //         Face => {}
-    //         _ => f32::MAX,
-    //     }
-    // }
+    /// Return the length and height of the shape.
+    pub fn get_shape_dim(&self) -> Vec2f {
+        let mut dim = Vec2f::zero();
+
+        match &self.sub_role {
+            Disc => {
+                let radius = self.values.get(FTValueRole::Radius, vec![0.5])[0] * 2.0;
+                dim.x = radius;
+                dim.y = radius;
+            }
+            _ => {
+                dim.x = self.values.get(FTValueRole::Length, vec![1.0])[0];
+                dim.y = self.values.get(FTValueRole::Height, vec![1.0])[0];
+            }
+        }
+
+        dim
+    }
 }

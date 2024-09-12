@@ -274,7 +274,13 @@ impl Compiler {
                         }
                     }
                     self.advance();
-                } else if self.check(TokenType::Identifier) {
+                } else if self.check(TokenType::Identifier) || self.check(TokenType::LeftBracket) {
+                    let mut has_bracket = false;
+                    if self.check(TokenType::LeftBracket) {
+                        has_bracket = true;
+                        self.advance();
+                    }
+
                     let map_value = self.parser.current.lexeme.clone();
                     if property == "material" {
                         self.advance();
@@ -294,8 +300,12 @@ impl Compiler {
                         }
                         self.advance();
                     } else if property == "content" {
-                        self.advance();
+                        if !has_bracket {
+                            self.error_at_current("Expected '[' at beginning of content list.");
+                            return;
+                        }
 
+                        self.advance();
                         node.links = self.read_string_list_as_ref_list(map_value, ctx);
                         //println!("{} = {:?}", property, node.links);
                     } else {
@@ -322,6 +332,7 @@ impl Compiler {
     /// Read a comma separated list of strings and take their references as link list.
     pub fn read_string_list_as_ref_list(&mut self, first: String, ctx: &FTContext) -> Vec<u16> {
         let mut list: Vec<String> = vec![first];
+
         loop {
             if self.check(TokenType::Comma) {
                 self.advance();
@@ -332,7 +343,14 @@ impl Compiler {
             if self.check(TokenType::Identifier) {
                 list.push(self.current().lexeme.clone());
                 self.advance();
+            } else if self.check(TokenType::RightBracket) {
+                self.advance();
+                break;
             } else {
+                self.error_at_current(&format!(
+                    "Expected ']' at end of list, got '{}'.",
+                    self.parser.current.lexeme
+                ));
                 break;
             }
         }
