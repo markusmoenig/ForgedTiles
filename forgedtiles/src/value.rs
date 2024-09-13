@@ -1,8 +1,8 @@
-// use crate::prelude::*;
+use crate::prelude::*;
 
 use FTValueRole::*;
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub enum FTValueRole {
     Color,
     Width,
@@ -38,7 +38,7 @@ impl FTValueRole {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct FTValues {
     pub values: Vec<(FTValueRole, Vec<f32>)>,
 }

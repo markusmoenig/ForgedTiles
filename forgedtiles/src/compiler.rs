@@ -306,8 +306,9 @@ impl Compiler {
                         }
 
                         self.advance();
-                        node.links = self.read_string_list_as_ref_list(map_value, ctx);
-                        //println!("{} = {:?}", property, node.links);
+                        if map_value != "]" {
+                            node.links = self.read_string_list_as_ref_list(map_value, ctx);
+                        }
                     } else {
                         node.map.insert(property, vec![map_value]);
                         self.advance();

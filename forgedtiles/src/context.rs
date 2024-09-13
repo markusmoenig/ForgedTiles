@@ -7,7 +7,7 @@ use rayon::prelude::*;
 use crate::NodeRole::*;
 use crate::NodeSubRole::*;
 
-#[derive(Clone, Debug)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct FTContext {
     pub nodes: Vec<Node>,
     pub shapes: Vec<u8>,
@@ -258,7 +258,11 @@ impl FTContext {
                     let mut dist = FTHitStruct::default();
                     let mut hit_index: Option<usize> = None;
                     for index in &indices {
-                        self.distance(*index as usize, p, vec2f(0.5, 0.5), &mut hit);
+                        let mut pos = vec2f(0.0, 0.0);
+                        if self.nodes[*index as usize].role == NodeRole::Shape {
+                            pos = vec2f(0.5, 0.5);
+                        }
+                        self.distance(*index as usize, p, pos, &mut hit);
                         if hit.distance < 0.0 && hit.distance < dist.distance {
                             dist.clone_from(&hit);
                             hit_index = Some(*index as usize);

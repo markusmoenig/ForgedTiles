@@ -1,6 +1,6 @@
 use crate::prelude::*;
 
-#[derive(PartialEq, Clone, Debug)]
+#[derive(Serialize, Deserialize,PartialEq, Clone, Debug)]
 pub enum NodeRole {
     Shape,
     Pattern,
@@ -8,7 +8,7 @@ pub enum NodeRole {
     Material,
 }
 
-#[derive(PartialEq, Clone, Debug)]
+#[derive(Serialize, Deserialize, PartialEq, Clone, Debug)]
 pub enum NodeSubRole {
     Disc,
     Box,
@@ -32,7 +32,7 @@ pub enum NodeSubRole {
 use NodeRole::*;
 use NodeSubRole::*;
 
-#[derive(Debug, Clone)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct Node {
     pub role: NodeRole,
     pub sub_role: NodeSubRole,
