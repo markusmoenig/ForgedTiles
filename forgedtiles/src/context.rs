@@ -96,7 +96,11 @@ impl FTContext {
         let mut dist_2d_min = f32::MAX;
 
         for index in indices {
-            self.distance(*index as usize, p2d, pos, &mut hit);
+            if self.nodes[*index as usize].role == NodeRole::Pattern {
+                self.distance(*index as usize, p2d, Vec2f::zero(), &mut hit);
+            } else {
+                self.distance(*index as usize, p2d, pos, &mut hit);
+            }
             if hit.distance <= dist_2d_min {
                 dist_2d_min = hit.distance;
             }
@@ -177,25 +181,32 @@ impl FTContext {
         let output = self.output.unwrap_or(self.nodes.len() - 1);
         let indices = &self.nodes[output].links;
 
+        // println!(
+        //     "output {:?} {} {} {}",
+        //     self.nodes[output].role, y, width, height
+        // );
         let w = width as f32;
         let h = height as f32;
 
-        let p = (2.0 * vec2f(x as f32, h - y as f32) - vec2f(w, h)) / h;
+        let p = vec2f(x as f32 / w, 1.0 - y as f32 / h); //(2.0 * vec2f(x as f32, h - y as f32) - vec2f(w, h)) / h;
+                                                         //let p = (2.0 * vec2f(x as f32, h - y as f32) - vec2f(w, h)) / h;
 
         let mut hit = FTHitStruct::default();
 
-        let mut dist = FTHitStruct::default();
-        let mut hit_index: Option<usize> = None;
+        //let mut dist = FTHitStruct::default();
+        //let mut hit_index: Option<usize> = None;
         for index in indices {
             self.distance(*index as usize, p, Vec2f::zero(), &mut hit);
-            if hit.distance < 0.0 && hit.distance < dist.distance {
-                dist.clone_from(&hit);
-                hit_index = Some(*index as usize);
+            if hit.distance < 0.0 {
+                //&& hit.distance < dist.distance {
+                //dist.clone_from(&hit);
+                //hit_index = Some(*index as usize);
+                break;
             }
         }
 
-        if dist.distance <= 0.0 {
-            Some(dist)
+        if hit.distance <= 0.0 {
+            Some(hit)
         } else {
             None
         }
@@ -590,7 +601,18 @@ impl FTContext {
                             p - vec2f(dim.x / 2.0 - offset * dim.x, 0.0),
                             dim.x + spacing,
                         );
+
                         self.distance(content, r, pos, hit);
+                        if hit.distance < 0.0 {
+                            // hit.pattern_hash = crate::sdf::hash21(floor(
+                            //     (p - vec2f(dim.x / 2.0 - offset * dim.x, 0.0))
+                            //         / vec2f(dim.x + spacing, dim.y),
+                            // ));
+                            let u = (p - vec2f(offset, 0.0)) / vec2f(dim.x + spacing, dim.y);
+                            hit.pattern_hash = crate::sdf::hash21(floor(u));
+                            let id = (hit.pattern_hash * 10000.0).floor() as i32;
+                            hit.pattern_id = id % 10000;
+                        }
 
                         /*
                         pos += vec2f(length / 2.0, height / 2.0);
@@ -666,10 +688,6 @@ impl FTContext {
                                 [counter % self.nodes[index].links.len()]
                                 as usize;
 
-                            if pos.y + hit.last_size.y > hit.face.y || pos.y > p.y {
-                                break;
-                            }
-
                             self.distance(content, p, pos, hit);
                             if hit.distance <= 0.0 {
                                 break;
@@ -677,6 +695,10 @@ impl FTContext {
                             let add_y = hit.last_size.y + spacing;
                             pos.x = 0.0;
                             pos.y += add_y;
+
+                            if pos.y + hit.last_size.y > hit.face.y {
+                                break;
+                            }
 
                             counter += 1;
                         }
