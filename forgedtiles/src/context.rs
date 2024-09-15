@@ -177,6 +177,7 @@ impl FTContext {
         normalize(n)
     }
 
+    /// Get the meta data at the given position of a face.
     pub fn meta_data_at(&self, x: i32, y: i32, width: usize, height: usize) -> Option<FTHitStruct> {
         if self.nodes.is_empty() {
             return None;
@@ -212,6 +213,86 @@ impl FTContext {
         } else {
             None
         }
+    }
+
+    /// Computes the pixel at the given position.
+    pub fn face_pixel_at(&self, mut p: Vec2f) -> Option<[u8; 4]> {
+        if self.nodes.is_empty() {
+            return None;
+        }
+        let output = self.output.unwrap_or(self.nodes.len() - 1);
+        let indices = if self.nodes[output].role != Face {
+            vec![output as u16]
+        } else {
+            self.nodes[output].links.clone()
+        };
+
+        let face: Vec3f = if self.nodes[output].role == NodeRole::Face {
+            let face_length = self.nodes[output]
+                .values
+                .get(FTValueRole::Length, vec![1.0])[0];
+
+            let face_height = self.nodes[output]
+                .values
+                .get(FTValueRole::Height, vec![1.0])[0];
+
+            let face_thickness = self.nodes[output]
+                .values
+                .get(FTValueRole::Thickness, vec![0.2])[0];
+
+            vec3f(face_length, face_height, face_thickness)
+        } else {
+            vec3f(1.0, 1.0, 1.0)
+        };
+
+        p.x /= face.x;
+
+        let mut color = Vec3f::zero();
+
+        let mut hit = FTHitStruct {
+            face,
+            ..Default::default()
+        };
+
+        let mut dist = FTHitStruct::default();
+        let mut hit_index: Option<usize> = None;
+        for index in &indices {
+            let mut pos = vec2f(0.0, 0.0);
+            if self.nodes[*index as usize].role == NodeRole::Shape {
+                pos = vec2f(0.5, 0.5);
+            }
+            self.distance(*index as usize, p, pos, &mut hit);
+            if hit.distance < 0.0 && hit.distance < dist.distance {
+                dist.clone_from(&hit);
+                hit_index = Some(*index as usize);
+            }
+        }
+
+        if hit_index.is_some() {
+            if let Some(material) = self.nodes[hit.node].material {
+                let col = self.nodes[material as usize]
+                    .values
+                    .get(FTValueRole::Color, vec![0.5, 0.5, 0.5]);
+                color[0] = col[0];
+                color[1] = col[1];
+                color[2] = col[2];
+
+                color[0] = col[0] + ((hit.pattern_hash) - 0.5) * 0.5;
+                color[1] = col[1] + ((hit.pattern_hash) - 0.5) * 0.5;
+                color[2] = col[2] + ((hit.pattern_hash) - 0.5) * 0.5;
+
+                return Some([
+                    (color.x * 255.0) as u8,
+                    (color.y * 255.0) as u8,
+                    (color.z * 255.0) as u8,
+                    255,
+                ]);
+            } else {
+                return Some([127, 127, 127, 255]);
+            }
+        }
+
+        None
     }
 
     /// Render the output node into as 2D

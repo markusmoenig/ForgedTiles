@@ -3,6 +3,7 @@ pub mod camera;
 pub mod compiler;
 pub mod context;
 pub mod hit;
+pub mod material;
 pub mod node;
 pub mod ray;
 pub mod scanner;
@@ -17,6 +18,7 @@ pub mod prelude {
     pub use crate::compiler::FTError;
     pub use crate::context::FTContext;
     pub use crate::hit::*;
+    pub use crate::material::*;
     pub use crate::node::*;
     pub use crate::scanner::*;
     pub use crate::value::*;
