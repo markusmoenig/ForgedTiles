@@ -14,6 +14,9 @@ pub struct FTHitStruct {
     pub face: Vec3f,
 
     pub tile_id: Vec2f,
+
+    pub seed: f32,
+    pub seed_id: i32,
 }
 
 impl Default for FTHitStruct {
@@ -37,6 +40,8 @@ impl FTHitStruct {
 
             tile_id: Vec2f::zero(),
 
+            seed: 0.0,
+            seed_id: 0,
         }
     }
 }

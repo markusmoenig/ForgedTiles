@@ -42,7 +42,7 @@ impl FTContext {
     }
 
     /// Get the distance to a face.
-    pub fn distance_to_face(&self, p: Vec3f, face_index: usize, tile_id: Vec2f) -> FTHitStruct {
+    pub fn distance_to_face(&self, mut p: Vec3f, face_index: usize, tile_id: Vec2f) -> FTHitStruct {
         let mut hit = FTHitStruct::default();
         if
         /*face_index >= self.faces.len() - 1 ||*/
@@ -66,7 +66,10 @@ impl FTContext {
             .values
             .get(FTValueRole::Thickness, vec![0.2])[0];
 
-        hit.face = vec3f(tile_id.x + face_length, face_height, face_thickness);
+        hit.face = vec3f(tile_id.x / face_length + 1.0, face_height, face_thickness);
+
+        // Scale the position to the face length
+        p.x /= face_length;
 
         fn op_extrusion_x(p: Vec3f, d: f32, h: f32) -> f32 {
             let w = Vec2f::new(d, abs(p.x) - h);
@@ -181,17 +184,16 @@ impl FTContext {
         let output = self.output.unwrap_or(self.nodes.len() - 1);
         let indices = &self.nodes[output].links;
 
-        // println!(
-        //     "output {:?} {} {} {}",
-        //     self.nodes[output].role, y, width, height
-        // );
         let w = width as f32;
         let h = height as f32;
 
-        let p = vec2f(x as f32 / w, 1.0 - y as f32 / h); //(2.0 * vec2f(x as f32, h - y as f32) - vec2f(w, h)) / h;
-                                                         //let p = (2.0 * vec2f(x as f32, h - y as f32) - vec2f(w, h)) / h;
+        let length = self.get_value_default(output, FTValueRole::Length, vec![1.0]);
+        let p = vec2f(x as f32 / length[0] / w, 1.0 - y as f32 / h);
 
-        let mut hit = FTHitStruct::default();
+        let mut hit = FTHitStruct {
+            face: vec3f(100.0, 100.0, 100.0),
+            ..Default::default()
+        };
 
         //let mut dist = FTHitStruct::default();
         //let mut hit_index: Option<usize> = None;
@@ -212,6 +214,7 @@ impl FTContext {
         }
     }
 
+    /// Render the output node into as 2D
     pub fn render(&self, width: usize, height: usize, buffer: &mut [u8]) {
         let w = width as f32;
         let h = height as f32;
@@ -288,6 +291,10 @@ impl FTContext {
                             color[0] = col[0];
                             color[1] = col[1];
                             color[2] = col[2];
+
+                            color[0] = col[0] + ((hit.pattern_hash) - 0.5) * 0.5;
+                            color[1] = col[1] + ((hit.pattern_hash) - 0.5) * 0.5;
+                            color[2] = col[2] + ((hit.pattern_hash) - 0.5) * 0.5;
                         } else {
                             color = vec3f(0.5, 0.5, 0.5);
                         }
@@ -602,78 +609,19 @@ impl FTContext {
                             dim.x + spacing,
                         );
 
-                        self.distance(content, r, pos, hit);
-                        if hit.distance < 0.0 {
-                            // hit.pattern_hash = crate::sdf::hash21(floor(
-                            //     (p - vec2f(dim.x / 2.0 - offset * dim.x, 0.0))
-                            //         / vec2f(dim.x + spacing, dim.y),
-                            // ));
-                            let u = (p - vec2f(offset, 0.0)) / vec2f(dim.x + spacing, dim.y);
-                            hit.pattern_hash = crate::sdf::hash21(floor(u));
-                            let id = (hit.pattern_hash * 10000.0).floor() as i32;
-                            hit.pattern_id = id % 10000;
+                        let u = (p - vec2f(offset * dim.x, pos.y - dim.y / 2.0))
+                            / vec2f(dim.x + spacing, dim.y + pos.y);
+                        let pattern_hash = crate::sdf::hash21(floor(u) + hit.seed);
+                        let pattern_id = ((pattern_hash * 10000.0).floor() as i32) % 10000;
+
+                        if pattern_id != 0 {
+                            self.distance(content, r, pos, hit);
+                            if hit.distance < 0.0 {
+                                hit.pattern_hash = pattern_hash;
+                                hit.pattern_id = pattern_id;
+                            }
                         }
-
-                        /*
-                        pos += vec2f(length / 2.0, height / 2.0);
-                        let mut iter = 0;
-
-                        loop {
-                            //if pos.x < p.x + length {
-                            self.distance(content, p, pos, hit);
-                            if hit.distance <= 0.0 {
-                                break;
-                            }
-                            //}
-                            // if iter == 3 {
-                            //     break;
-                            // }
-                            pos.x += length + 0.01;
-                            if pos.x > hit.face.x || pos.x - length / 2.0 > p.x {
-                                break;
-                            }
-                            iter += 1;
-                        }*/
                     }
-
-                    /*
-                    let length = self.values.get(FTValueRole::Length, vec![1.0])[0];
-                    let height = self.values.get(FTValueRole::Height, vec![1.0])[0];
-                    let cell = self.values.get(Cell, vec![3.0])[0];
-
-                    //let height = height / cell;
-
-                    //let pos = pos
-                    hit.distance = crate::sdf::sdf_box2d(p, pos, length / 2.0, height / 2.0, 0.0)
-                    */
-                    /*
-                    let ratio = self.values.get(Ratio, vec![3.0])[0];
-                    let round = self.values.get(Rounding, vec![0.0])[0];
-                    let rotation = self.values.get(Rotation, vec![1.0])[0] / 10.0;
-                    let gap = self.values.get(Gap, vec![1.0])[0] / 10.0;
-                    let cell = self.values.get(Cell, vec![3.0])[0];
-
-                    let mut u = p - pos + 10.0; // + hit.tile_id; // + vec2f(0.0, 0.5);
-
-                    let w = vec2f(ratio, 1.0);
-                    u *= vec2f(cell, cell) / w;
-
-                    u.x += 0.5 * u.y.floor() % 2.0;
-
-                    // let id = hash21(floor(u));
-                    let hash = crate::sdf::hash21(floor(u));
-
-                    let id = (hash * 10000.0).floor() as i32;
-                    let id = id % 10000;
-
-                    let mut p = frac(u);
-                    p = crate::sdf::rot((hash - 0.5) * rotation) * (p - 0.5);
-
-                    hit.distance =
-                        crate::sdf::sdf_box2d(p, Vec2f::zero(), 0.5 - gap, 0.5 - gap, round);
-                    hit.pattern_id = id;
-                    hit.pattern_hash = hash;
-                    */
                 }
                 Stack => {
                     if !self.nodes[index].links.is_empty() {
@@ -682,8 +630,12 @@ impl FTContext {
 
                         pos = Vec2f::zero();
                         let mut counter = 0;
+                        // let mut rng = rand::thread_rng();
+                        // hit.seed = rng.gen();
 
                         loop {
+                            hit.seed = crate::sdf::hash21(pos);
+                            hit.seed_id = ((hit.seed * 10000.0).floor() as i32) % 10000;
                             let content = self.nodes[index].links
                                 [counter % self.nodes[index].links.len()]
                                 as usize;
