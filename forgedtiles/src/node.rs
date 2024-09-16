@@ -16,6 +16,7 @@ pub enum NodeSubRole {
     Repeat,
     Offset,
     Stack,
+    Group,
 
     Floor,
     Left,

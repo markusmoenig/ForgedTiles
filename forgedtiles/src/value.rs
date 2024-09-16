@@ -16,6 +16,8 @@ pub enum FTValueRole {
     Rounding,
     Spacing,
     Offset,
+    X,
+    Y,
 }
 
 impl FTValueRole {
@@ -33,6 +35,8 @@ impl FTValueRole {
             "rounding" => Some(Rounding),
             "spacing" => Some(Spacing),
             "offset" => Some(Offset),
+            "x" => Some(X),
+            "y" => Some(Y),
             _ => None,
         }
     }

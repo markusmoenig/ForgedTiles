@@ -149,6 +149,9 @@ impl Compiler {
                                 "Stack" => {
                                     node = Some(Node::new(NodeRole::Pattern, NodeSubRole::Stack));
                                 }
+                                "Group" => {
+                                    node = Some(Node::new(NodeRole::Pattern, NodeSubRole::Group));
+                                }
                                 _ => {
                                     self.error_at_current(&format!("Unknown pattern '{}'.", shape))
                                 }

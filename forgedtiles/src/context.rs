@@ -64,12 +64,9 @@ impl FTContext {
 
         let face_thickness = self.nodes[face_index as usize]
             .values
-            .get(FTValueRole::Thickness, vec![0.2])[0];
+            .get(FTValueRole::Thickness, vec![0.1])[0];
 
-        hit.face = vec3f(tile_id.x / face_length + 1.0, face_height, face_thickness);
-
-        // Scale the position to the face length
-        p.x /= face_length;
+        hit.face = vec3f(tile_id.x + face_length, face_height, face_thickness);
 
         fn op_extrusion_x(p: Vec3f, d: f32, h: f32) -> f32 {
             let w = Vec2f::new(d, abs(p.x) - h);
@@ -95,23 +92,17 @@ impl FTContext {
             _ => (Vec2f::zero(), Vec2f::zero()),
         };
 
-        //let bb = crate::sdf::sdf_box2d(p2d, pos, half_length, 0.5, 0.0);
-        let mut dist_2d_min = f32::MAX;
-
         for index in indices {
             if self.nodes[*index as usize].role == NodeRole::Pattern {
-                self.distance(*index as usize, p2d, Vec2f::zero(), &mut hit);
+                self.distance(*index as usize, p2d, Vec2f::zero(), &mut hit)
             } else {
-                self.distance(*index as usize, p2d, pos, &mut hit);
-            }
-            if hit.distance <= dist_2d_min {
-                dist_2d_min = hit.distance;
-            }
+                self.distance(*index as usize, p2d, pos, &mut hit)
+            };
         }
 
         // Clip 2D output to the face
-        dist_2d_min = max(
-            dist_2d_min,
+        let dist_2d_min = max(
+            hit.min_distance,
             crate::sdf::sdf_box2d(
                 p2d,
                 vec2f(hit.face.x / 2.0, hit.face.y / 2.0),
@@ -188,8 +179,9 @@ impl FTContext {
         let w = width as f32;
         let h = height as f32;
 
-        let length = self.get_value_default(output, FTValueRole::Length, vec![1.0]);
-        let p = vec2f(x as f32 / length[0] / w, 1.0 - y as f32 / h);
+        let length = self.get_value_default(output, FTValueRole::Length, vec![1.0])[0];
+        let height = self.get_value_default(output, FTValueRole::Height, vec![1.0])[0];
+        let p = vec2f(x as f32 / w, height - y as f32 / h);
 
         let mut hit = FTHitStruct {
             face: vec3f(100.0, 100.0, 100.0),
@@ -244,8 +236,6 @@ impl FTContext {
         } else {
             vec3f(1.0, 1.0, 1.0)
         };
-
-        p.x /= face.x;
 
         let mut color = Vec3f::zero();
 
@@ -340,7 +330,10 @@ impl FTContext {
                     let xx = x / w;
                     let yy = y / h;
 
-                    let p = vec2f(xx, yy);
+                    let mut p = vec2f(xx, yy);
+                    p.x *= face.x;
+                    p.y *= face.y;
+
                     let mut color = vec3f(0.0, 0.0, 0.0);
 
                     //let p = (2.0 * vec2f(x, y) - vec2f(w, h)) / h;
@@ -350,21 +343,26 @@ impl FTContext {
                         ..Default::default()
                     };
 
-                    let mut dist = FTHitStruct::default();
-                    let mut hit_index: Option<usize> = None;
+                    //let mut hit_index: Option<usize> = None;
                     for index in &indices {
-                        let mut pos = vec2f(0.0, 0.0);
-                        if self.nodes[*index as usize].role == NodeRole::Shape {
-                            pos = vec2f(0.5, 0.5);
-                        }
-                        self.distance(*index as usize, p, pos, &mut hit);
-                        if hit.distance < 0.0 && hit.distance < dist.distance {
-                            dist.clone_from(&hit);
-                            hit_index = Some(*index as usize);
-                        }
+                        // let mut local_hit = FTHitStruct {
+                        //     face,
+                        //     ..Default::default()
+                        // };
+
+                        let pos = vec2f(0.0, 0.0);
+                        // if self.nodes[*index as usize].role == NodeRole::Shape {
+                        //     pos = vec2f(0.5, 0.5);
+                        // }
+                        _ = self.distance(*index as usize, p, pos, &mut hit);
+                        //if distance < 0.0 {
+                        //&& hit.distance < dist.distance {
+                        //hit.clone_from(&local_hit);
+                        //hit_index = Some(*index as usize);
+                        //}
                     }
 
-                    if hit_index.is_some() {
+                    if hit.distance < 0.0 {
                         if let Some(material) = self.nodes[hit.node].material {
                             let col = self.nodes[material as usize]
                                 .values
@@ -644,16 +642,21 @@ impl FTContext {
     }
 
     /// Returns the distance and other meta data for the given node.
-    pub fn distance(&self, index: usize, p: Vec2f, mut pos: Vec2f, hit: &mut FTHitStruct) {
-        #[allow(clippy::single_match)]
+    pub fn distance(&self, index: usize, p: Vec2f, mut pos: Vec2f, hit: &mut FTHitStruct) -> f32 {
+        let mut distance = f32::MAX;
+
+        // #[allow(clippy::single_match)]
         match &self.nodes[index].role {
             Shape => match &self.nodes[index].sub_role {
                 Disc => {
                     let radius = self.get_value_default(index, FTValueRole::Radius, vec![0.5])[0];
-                    let d = length(p - pos) - radius;
-                    if d < hit.distance {
-                        hit.distance = d;
+                    distance = length(p - pos) - radius;
+                    if distance < 0.0 {
+                        hit.distance = distance;
                         hit.node = index;
+                    }
+                    if distance < hit.min_distance {
+                        hit.min_distance = distance;
                     }
                 }
                 Box => {
@@ -661,13 +664,29 @@ impl FTContext {
                     let height = self.get_value_default(index, FTValueRole::Height, vec![1.0])[0];
                     let rounding =
                         self.get_value_default(index, FTValueRole::Rounding, vec![0.0])[0];
-                    let d = crate::sdf::sdf_box2d(p, pos, length / 2.0, height / 2.0, rounding);
-                    if d < hit.distance {
-                        hit.distance = d;
+                    distance = crate::sdf::sdf_box2d(p, pos, length / 2.0, height / 2.0, rounding);
+                    if distance < 0.0 {
+                        hit.distance = distance;
+                        // hit.node = index;
+                    }
+
+                    if distance < hit.min_distance {
+                        hit.min_distance = distance;
                         hit.node = index;
                     }
+
+                    if let Some(group_distance) = &hit.group_distance {
+                        if
+                        /*distance < *group_distance &&*/
+                        distance < 0.0 {
+                            hit.group_distance = Some(distance);
+                            hit.node = index;
+                        }
+                    }
+
+                    hit.last_size = self.get_dim_default(index);
                 }
-                _ => hit.distance = f32::MAX,
+                _ => {}
             },
             Pattern => match &self.nodes[index].sub_role {
                 Repeat => {
@@ -692,15 +711,14 @@ impl FTContext {
 
                         let u = (p - vec2f(offset * dim.x, pos.y - dim.y / 2.0))
                             / vec2f(dim.x + spacing, dim.y + pos.y);
-                        let pattern_hash = crate::sdf::hash21(floor(u) + hit.seed);
+                        let pattern_hash = crate::sdf::hash21(floor(u) + hit.working_seed);
                         let pattern_id = ((pattern_hash * 10000.0).floor() as i32) % 10000;
 
-                        if pattern_id != 0 {
-                            self.distance(content, r, pos, hit);
-                            if hit.distance < 0.0 {
-                                hit.pattern_hash = pattern_hash;
-                                hit.pattern_id = pattern_id;
-                            }
+                        distance = self.distance(content, r, pos, hit);
+                        if distance < 0.0 {
+                            //hit.distance = distance;
+                            hit.pattern_hash = pattern_hash;
+                            hit.pattern_id = pattern_id;
                         }
                     }
                 }
@@ -709,27 +727,39 @@ impl FTContext {
                         let spacing =
                             self.get_value_default(index, FTValueRole::Spacing, vec![0.0])[0];
 
-                        pos = Vec2f::zero();
+                        pos = hit.origin;
                         let mut counter = 0;
                         // let mut rng = rand::thread_rng();
                         // hit.seed = rng.gen();
 
+                        let content = self.nodes[index].links[0] as usize;
+
+                        let mut top_end = hit.face.y;
+                        if self.nodes[content].role == Shape {
+                            let dim = self.get_dim_default(content);
+                            pos += vec2f(dim.x / 2.0, dim.y / 2.0);
+                            top_end += dim.y / 2.0;
+                        }
+
                         loop {
-                            hit.seed = crate::sdf::hash21(pos);
-                            hit.seed_id = ((hit.seed * 10000.0).floor() as i32) % 10000;
+                            hit.working_seed = crate::sdf::hash21(pos);
+                            hit.working_seed_id =
+                                ((hit.working_seed * 10000.0).floor() as i32) % 10000;
                             let content = self.nodes[index].links
                                 [counter % self.nodes[index].links.len()]
                                 as usize;
 
-                            self.distance(content, p, pos, hit);
+                            distance = self.distance(content, p, pos, hit);
                             if hit.distance <= 0.0 {
+                                hit.seed = hit.working_seed;
+                                hit.seed_id = hit.working_seed_id;
                                 break;
                             }
-                            let add_y = hit.last_size.y + spacing;
-                            pos.x = 0.0;
-                            pos.y += add_y;
 
-                            if pos.y + hit.last_size.y > hit.face.y {
+                            pos.y += hit.last_size.y + spacing;
+
+                            //println!("{} {}", pos.y + hit.last_size.y, top_end);
+                            if pos.y + hit.last_size.y > top_end {
                                 break;
                             }
 
@@ -737,10 +767,54 @@ impl FTContext {
                         }
                     }
                 }
+                Group => {
+                    if !self.nodes[index].links.is_empty() {
+                        let mut group_pos = Vec2f::zero();
+                        group_pos.x = self.get_value_default(index, FTValueRole::X, vec![0.0])[0];
+                        group_pos.y = self.get_value_default(index, FTValueRole::Y, vec![0.0])[0];
+                        let old_origin = hit.origin;
+                        hit.origin = group_pos;
+
+                        let length =
+                            self.get_value_default(index, FTValueRole::Length, vec![1.0])[0];
+                        let height =
+                            self.get_value_default(index, FTValueRole::Height, vec![1.0])[0];
+
+                        let cut_out = crate::sdf::sdf_box2d(
+                            p,
+                            group_pos + vec2f(length / 2.0, height / 2.0),
+                            length / 2.0,
+                            height / 2.0,
+                            0.0,
+                        );
+                        distance = max(hit.distance, -cut_out);
+                        hit.distance = distance;
+
+                        hit.group_distance = Some(f32::MAX);
+                        // if hit.distance > -cut_out {
+                        //     //hit.material_distance = f32::MAX;
+                        // }
+
+                        let content = self.nodes[index].links[0] as usize;
+                        if self.nodes[content].role == Shape {
+                            group_pos.x += length / 2.0;
+                            group_pos.y += height / 2.0;
+                        }
+
+                        for content in &self.nodes[index].links {
+                            distance = self.distance(*content as usize, p, group_pos, hit);
+                        }
+
+                        hit.group_distance = None;
+                        hit.origin = old_origin;
+                    }
+                }
                 _ => {}
             },
             _ => {}
         }
+
+        distance
     }
 
     /// Get a value from a node.
