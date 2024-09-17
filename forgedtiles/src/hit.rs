@@ -5,9 +5,8 @@ use crate::prelude::*;
 pub struct FTHitStruct {
     pub distance: f32,
     pub min_distance: f32,
-    pub group_distance: Option<f32>,
 
-    pub node: usize,
+    pub node: Option<usize>,
 
     pub last_size: Vec2f,
 
@@ -38,9 +37,8 @@ impl FTHitStruct {
         Self {
             distance: f32::MAX,
             min_distance: f32::MAX,
-            group_distance: None,
 
-            node: 0,
+            node: None,
 
             last_size: Vec2f::zero(),
 

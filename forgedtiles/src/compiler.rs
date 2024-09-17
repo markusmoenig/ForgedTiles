@@ -277,7 +277,10 @@ impl Compiler {
                         }
                     }
                     self.advance();
-                } else if self.check(TokenType::Identifier) || self.check(TokenType::LeftBracket) {
+                } else if self.check(TokenType::Identifier)
+                    || self.check(TokenType::LeftBracket)
+                    || self.check(TokenType::HexColor)
+                {
                     let mut has_bracket = false;
                     if self.check(TokenType::LeftBracket) {
                         has_bracket = true;
@@ -296,10 +299,14 @@ impl Compiler {
                             self.error_at_current(&format!("Unknown variable ('{}').", map_value));
                         }
                     } else if property == "color" {
-                        if let Some(color) = self.hex_to_rgb_normalized(&map_value) {
-                            node.values.add(FTValueRole::Color, color);
-                        } else {
-                            self.error_at_current(&format!("Invalid hex color {}", map_value));
+                        if self.check(TokenType::HexColor) {
+                            let mut color = map_value.clone();
+                            color.remove(0);
+                            if let Some(color) = self.hex_to_rgb_normalized(&color) {
+                                node.values.add(FTValueRole::Color, color);
+                            } else {
+                                self.error_at_current(&format!("Invalid hex color {}", map_value));
+                            }
                         }
                         self.advance();
                     } else if property == "content" {

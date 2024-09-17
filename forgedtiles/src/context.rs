@@ -42,8 +42,12 @@ impl FTContext {
     }
 
     /// Get the distance to a face.
-    pub fn distance_to_face(&self, mut p: Vec3f, face_index: usize, tile_id: Vec2f) -> FTHitStruct {
-        let mut hit = FTHitStruct::default();
+    pub fn distance_to_face(&self, p: Vec3f, face_index: usize, tile_id: Vec2f) -> FTHitStruct {
+        let mut hit = FTHitStruct {
+            tile_id,
+            ..Default::default()
+        };
+
         if
         /*face_index >= self.faces.len() - 1 ||*/
         self.faces.is_empty() {
@@ -179,7 +183,7 @@ impl FTContext {
         let w = width as f32;
         let h = height as f32;
 
-        let length = self.get_value_default(output, FTValueRole::Length, vec![1.0])[0];
+        //let length = self.get_value_default(output, FTValueRole::Length, vec![1.0])[0];
         let height = self.get_value_default(output, FTValueRole::Height, vec![1.0])[0];
         let p = vec2f(x as f32 / w, height - y as f32 / h);
 
@@ -208,7 +212,7 @@ impl FTContext {
     }
 
     /// Computes the pixel at the given position.
-    pub fn face_pixel_at(&self, mut p: Vec2f) -> Option<[u8; 4]> {
+    pub fn face_pixel_at(&self, p: Vec2f) -> Option<[u8; 4]> {
         if self.nodes.is_empty() {
             return None;
         }
@@ -244,39 +248,43 @@ impl FTContext {
             ..Default::default()
         };
 
-        let mut dist = FTHitStruct::default();
-        let mut hit_index: Option<usize> = None;
+        // let mut dist = FTHitStruct::default();
+        // let mut hit_index: Option<usize> = None;
         for index in &indices {
             let mut pos = vec2f(0.0, 0.0);
             if self.nodes[*index as usize].role == NodeRole::Shape {
                 pos = vec2f(0.5, 0.5);
             }
             self.distance(*index as usize, p, pos, &mut hit);
-            if hit.distance < 0.0 && hit.distance < dist.distance {
-                dist.clone_from(&hit);
-                hit_index = Some(*index as usize);
-            }
+            // if hit.distance < 0.0 && hit.distance < dist.distance {
+            //     dist.clone_from(&hit);
+            //     hit_index = Some(*index as usize);
+            // }
         }
 
-        if hit_index.is_some() {
-            if let Some(material) = self.nodes[hit.node].material {
-                let col = self.nodes[material as usize]
-                    .values
-                    .get(FTValueRole::Color, vec![0.5, 0.5, 0.5]);
-                color[0] = col[0];
-                color[1] = col[1];
-                color[2] = col[2];
+        if hit.distance < 0.0 {
+            if let Some(node) = hit.node {
+                if let Some(material) = self.nodes[node].material {
+                    let col = self.nodes[material as usize]
+                        .values
+                        .get(FTValueRole::Color, vec![0.5, 0.5, 0.5]);
+                    color[0] = col[0];
+                    color[1] = col[1];
+                    color[2] = col[2];
 
-                color[0] = col[0] + ((hit.pattern_hash) - 0.5) * 0.5;
-                color[1] = col[1] + ((hit.pattern_hash) - 0.5) * 0.5;
-                color[2] = col[2] + ((hit.pattern_hash) - 0.5) * 0.5;
+                    color[0] = col[0] + ((hit.pattern_hash) - 0.5) * 0.5;
+                    color[1] = col[1] + ((hit.pattern_hash) - 0.5) * 0.5;
+                    color[2] = col[2] + ((hit.pattern_hash) - 0.5) * 0.5;
 
-                return Some([
-                    (color.x * 255.0) as u8,
-                    (color.y * 255.0) as u8,
-                    (color.z * 255.0) as u8,
-                    255,
-                ]);
+                    return Some([
+                        (color.x * 255.0) as u8,
+                        (color.y * 255.0) as u8,
+                        (color.z * 255.0) as u8,
+                        255,
+                    ]);
+                } else {
+                    return Some([127, 127, 127, 255]);
+                }
             } else {
                 return Some([127, 127, 127, 255]);
             }
@@ -284,6 +292,24 @@ impl FTContext {
 
         None
     }
+
+    /// Get the BSDF material of the given shape node index.
+    // pub fn get_material_of(&self, hit: &FTHitStruct) -> BSDFMaterial {
+    //     let mut mat = BSDFMaterial::default();
+
+    //     if let Some(index) = ctx.node {
+    //         if let Some(material) = self.nodes[index].material {
+    //             let c = self.nodes[material as usize]
+    //                 .values
+    //                 .get(FTValueRole::Color, vec![0.5, 0.5, 0.5]);
+    //             hit.mat.base_color[0] = c[0] + ((hit.pattern_hash) - 0.5) * 0.5;
+    //             hit.mat.base_color[1] = c[1] + ((hit.pattern_hash) - 0.5) * 0.5;
+    //             hit.mat.base_color[2] = c[2] + ((hit.pattern_hash) - 0.5) * 0.5;
+    //         }
+    //     }
+
+    //     mat
+    // }
 
     /// Render the output node into as 2D
     pub fn render(&self, width: usize, height: usize, buffer: &mut [u8]) {
@@ -363,17 +389,21 @@ impl FTContext {
                     }
 
                     if hit.distance < 0.0 {
-                        if let Some(material) = self.nodes[hit.node].material {
-                            let col = self.nodes[material as usize]
-                                .values
-                                .get(FTValueRole::Color, vec![0.5, 0.5, 0.5]);
-                            color[0] = col[0];
-                            color[1] = col[1];
-                            color[2] = col[2];
+                        if let Some(node) = hit.node {
+                            if let Some(material) = self.nodes[node].material {
+                                let col = self.nodes[material as usize]
+                                    .values
+                                    .get(FTValueRole::Color, vec![0.5, 0.5, 0.5]);
+                                color[0] = col[0];
+                                color[1] = col[1];
+                                color[2] = col[2];
 
-                            color[0] = col[0] + ((hit.pattern_hash) - 0.5) * 0.5;
-                            color[1] = col[1] + ((hit.pattern_hash) - 0.5) * 0.5;
-                            color[2] = col[2] + ((hit.pattern_hash) - 0.5) * 0.5;
+                                color[0] = col[0] + ((hit.pattern_hash) - 0.5) * 0.5;
+                                color[1] = col[1] + ((hit.pattern_hash) - 0.5) * 0.5;
+                                color[2] = col[2] + ((hit.pattern_hash) - 0.5) * 0.5;
+                            } else {
+                                color = vec3f(0.5, 0.5, 0.5);
+                            }
                         } else {
                             color = vec3f(0.5, 0.5, 0.5);
                         }
@@ -468,19 +498,21 @@ impl FTContext {
                                 //println!("aa {}", ft_hit.distance);
 
                                 if ft_hit.distance < 0.001 {
-                                    has_hit = true;
-                                    hit_point = p;
-                                    hit_distance = t;
-                                    hit_normal = self.face_normal(p, 0, Vec2f::zero());
-                                    if let Some(material) = self.nodes[ft_hit.node].material {
-                                        let col = self.nodes[material as usize]
-                                            .values
-                                            .get(FTValueRole::Color, vec![0.5, 0.5, 0.5]);
-                                        mat.base_color[0] = col[0];
-                                        mat.base_color[1] = col[1];
-                                        mat.base_color[2] = col[2];
-                                    } else {
-                                        color = vec3f(0.5, 0.5, 0.5);
+                                    if let Some(node) = ft_hit.node {
+                                        has_hit = true;
+                                        hit_point = p;
+                                        hit_distance = t;
+                                        hit_normal = self.face_normal(p, 0, Vec2f::zero());
+                                        if let Some(material) = self.nodes[node].material {
+                                            let col = self.nodes[material as usize]
+                                                .values
+                                                .get(FTValueRole::Color, vec![0.5, 0.5, 0.5]);
+                                            mat.base_color[0] = col[0];
+                                            mat.base_color[1] = col[1];
+                                            mat.base_color[2] = col[2];
+                                        } else {
+                                            color = vec3f(0.5, 0.5, 0.5);
+                                        }
                                     }
                                     break;
                                 }
@@ -653,10 +685,10 @@ impl FTContext {
                     distance = length(p - pos) - radius;
                     if distance < 0.0 {
                         hit.distance = distance;
-                        hit.node = index;
                     }
                     if distance < hit.min_distance {
                         hit.min_distance = distance;
+                        hit.node = Some(index);
                     }
                 }
                 Box => {
@@ -667,21 +699,10 @@ impl FTContext {
                     distance = crate::sdf::sdf_box2d(p, pos, length / 2.0, height / 2.0, rounding);
                     if distance < 0.0 {
                         hit.distance = distance;
-                        // hit.node = index;
                     }
-
                     if distance < hit.min_distance {
                         hit.min_distance = distance;
-                        hit.node = index;
-                    }
-
-                    if let Some(group_distance) = &hit.group_distance {
-                        if
-                        /*distance < *group_distance &&*/
-                        distance < 0.0 {
-                            hit.group_distance = Some(distance);
-                            hit.node = index;
-                        }
+                        hit.node = Some(index);
                     }
 
                     hit.last_size = self.get_dim_default(index);
@@ -768,46 +789,49 @@ impl FTContext {
                     }
                 }
                 Group => {
+                    let mut group_pos = Vec2f::zero();
+                    group_pos.x =
+                        hit.tile_id.x + self.get_value_default(index, FTValueRole::X, vec![0.0])[0];
+                    group_pos.y = self.get_value_default(index, FTValueRole::Y, vec![0.0])[0];
+                    let old_origin = hit.origin;
+                    hit.origin = group_pos;
+
+                    let length = self.get_value_default(index, FTValueRole::Length, vec![1.0])[0];
+                    let height = self.get_value_default(index, FTValueRole::Height, vec![1.0])[0];
+
+                    let cut_out = crate::sdf::sdf_box2d(
+                        p,
+                        group_pos + vec2f(length / 2.0, height / 2.0),
+                        length / 2.0,
+                        height / 2.0,
+                        0.0,
+                    );
+
+                    distance = max(hit.distance, -cut_out);
+                    hit.distance = distance;
+
+                    if cut_out < 0.0 {
+                        hit.min_distance = f32::MAX;
+                        hit.node = None;
+                        hit.pattern_hash = 0.0;
+                        hit.pattern_id = 0;
+                        hit.seed = 0.0;
+                        hit.seed_id = 0;
+                    }
+
                     if !self.nodes[index].links.is_empty() {
-                        let mut group_pos = Vec2f::zero();
-                        group_pos.x = self.get_value_default(index, FTValueRole::X, vec![0.0])[0];
-                        group_pos.y = self.get_value_default(index, FTValueRole::Y, vec![0.0])[0];
-                        let old_origin = hit.origin;
-                        hit.origin = group_pos;
-
-                        let length =
-                            self.get_value_default(index, FTValueRole::Length, vec![1.0])[0];
-                        let height =
-                            self.get_value_default(index, FTValueRole::Height, vec![1.0])[0];
-
-                        let cut_out = crate::sdf::sdf_box2d(
-                            p,
-                            group_pos + vec2f(length / 2.0, height / 2.0),
-                            length / 2.0,
-                            height / 2.0,
-                            0.0,
-                        );
-                        distance = max(hit.distance, -cut_out);
-                        hit.distance = distance;
-
-                        hit.group_distance = Some(f32::MAX);
-                        // if hit.distance > -cut_out {
-                        //     //hit.material_distance = f32::MAX;
-                        // }
-
                         let content = self.nodes[index].links[0] as usize;
                         if self.nodes[content].role == Shape {
                             group_pos.x += length / 2.0;
                             group_pos.y += height / 2.0;
                         }
-
-                        for content in &self.nodes[index].links {
-                            distance = self.distance(*content as usize, p, group_pos, hit);
-                        }
-
-                        hit.group_distance = None;
-                        hit.origin = old_origin;
                     }
+
+                    for content in &self.nodes[index].links {
+                        distance = self.distance(*content as usize, p, group_pos, hit);
+                    }
+
+                    hit.origin = old_origin;
                 }
                 _ => {}
             },

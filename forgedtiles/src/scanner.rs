@@ -152,7 +152,7 @@ impl Scanner {
             b'-' => self.make_token(TokenType::Minus),
             b'+' => self.make_token(TokenType::Plus),
             b'\'' => self.make_token(TokenType::Apostrophe),
-            b'#' => self.single_line_comment(),
+            b'/' if self.matches(b'/') => self.single_line_comment(),
             b'/' => self.make_token(TokenType::Slash),
             b'*' => self.make_token(TokenType::Star),
             b':' => self.make_token(TokenType::Colon),
@@ -166,6 +166,7 @@ impl Scanner {
             b'>' => self.make_token(TokenType::Greater),
             b'"' => self.string(),
             b'`' => self.string2(),
+            b'#' => self.hex_color(),
             c if is_digit(c) => self.number(),
             c if is_alpha(c) => self.identifier(),
             _ => self.make_token(TokenType::Unknown), //self.error_token("Unexpected character."),
@@ -377,7 +378,11 @@ impl Scanner {
     }
 
     fn hex_color(&mut self) -> Token {
-        while !self.is_at_end() && self.peek() != b'\n' {
+        while !self.is_at_end()
+            && self.peek() != b'\n'
+            && self.peek() != b','
+            && self.peek() != b';'
+        {
             self.advance();
         }
         self.make_token(TokenType::HexColor)
