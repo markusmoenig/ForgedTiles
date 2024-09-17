@@ -6,7 +6,7 @@ let brick_row = Pattern<Repeat> : offset = 0.0, spacing = 0.01, content = [brick
 let brick_row_offset = Pattern<Repeat> : offset = 0.5, spacing = 0.01, content = [brick];
 let brick_stack = Pattern<Stack> : content = [brick_row, brick_row_offset], spacing = 0.01;
 
-let mat2 = Material<BSDF>: color = #C0CBDC;
+let mat2 = Material<BSDF> : color = #00FF00;
 let stone = Shape<Box> : material = mat2, length = 0.1, height = 0.191;
 let stone_stack = Pattern<Stack> : content = [stone], spacing = 0.01;
 let stone_group = Pattern<Group> : x = 0.0, y = 0.0, length = 0.1, height = 1.0, content = [stone_stack];

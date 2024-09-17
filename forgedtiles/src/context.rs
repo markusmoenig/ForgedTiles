@@ -293,24 +293,6 @@ impl FTContext {
         None
     }
 
-    /// Get the BSDF material of the given shape node index.
-    // pub fn get_material_of(&self, hit: &FTHitStruct) -> BSDFMaterial {
-    //     let mut mat = BSDFMaterial::default();
-
-    //     if let Some(index) = ctx.node {
-    //         if let Some(material) = self.nodes[index].material {
-    //             let c = self.nodes[material as usize]
-    //                 .values
-    //                 .get(FTValueRole::Color, vec![0.5, 0.5, 0.5]);
-    //             hit.mat.base_color[0] = c[0] + ((hit.pattern_hash) - 0.5) * 0.5;
-    //             hit.mat.base_color[1] = c[1] + ((hit.pattern_hash) - 0.5) * 0.5;
-    //             hit.mat.base_color[2] = c[2] + ((hit.pattern_hash) - 0.5) * 0.5;
-    //         }
-    //     }
-
-    //     mat
-    // }
-
     /// Render the output node into as 2D
     pub fn render(&self, width: usize, height: usize, buffer: &mut [u8]) {
         let w = width as f32;
@@ -677,19 +659,29 @@ impl FTContext {
     pub fn distance(&self, index: usize, p: Vec2f, mut pos: Vec2f, hit: &mut FTHitStruct) -> f32 {
         let mut distance = f32::MAX;
 
+        /// Adjust the distances for shapes
+        #[inline(always)]
+        fn adjust_distances(index: usize, distance: f32, hit: &mut FTHitStruct) {
+            if distance < 0.0 {
+                hit.distance = distance;
+            }
+            if distance < hit.min_distance {
+                hit.min_distance = distance;
+                hit.node = Some(index);
+            }
+
+            if hit.node.is_none() {
+                hit.node = Some(index);
+            }
+        }
+
         // #[allow(clippy::single_match)]
         match &self.nodes[index].role {
             Shape => match &self.nodes[index].sub_role {
                 Disc => {
                     let radius = self.get_value_default(index, FTValueRole::Radius, vec![0.5])[0];
                     distance = length(p - pos) - radius;
-                    if distance < 0.0 {
-                        hit.distance = distance;
-                    }
-                    if distance < hit.min_distance {
-                        hit.min_distance = distance;
-                        hit.node = Some(index);
-                    }
+                    adjust_distances(index, distance, hit);
                 }
                 Box => {
                     let length = self.get_value_default(index, FTValueRole::Length, vec![1.0])[0];
@@ -697,15 +689,16 @@ impl FTContext {
                     let rounding =
                         self.get_value_default(index, FTValueRole::Rounding, vec![0.0])[0];
                     distance = crate::sdf::sdf_box2d(p, pos, length / 2.0, height / 2.0, rounding);
-                    if distance < 0.0 {
-                        hit.distance = distance;
-                    }
-                    if distance < hit.min_distance {
-                        hit.min_distance = distance;
-                        hit.node = Some(index);
-                    }
+
+                    // let hole = coll.get_f32_default("Hole", 0.0) * scale;
+
+                    // let mut d = length(p - self.position(&coll) * scale) - radius * scale + hole;
+                    // if hole > 0.0 {
+                    //     d = d.abs() - hole;
+                    // }
 
                     hit.last_size = self.get_dim_default(index);
+                    adjust_distances(index, distance, hit);
                 }
                 _ => {}
             },
@@ -811,7 +804,7 @@ impl FTContext {
                     hit.distance = distance;
 
                     if cut_out < 0.0 {
-                        hit.min_distance = f32::MAX;
+                        //hit.min_distance = f32::MAX;
                         hit.node = None;
                         hit.pattern_hash = 0.0;
                         hit.pattern_id = 0;

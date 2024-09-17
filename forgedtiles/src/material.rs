@@ -79,6 +79,24 @@ impl BSDFMaterial {
         }
     }
 
+    /// Fill the BSDF material from the given shape hit.
+    pub fn from_hit(ctx: &FTContext, hit: &FTHitStruct) -> BSDFMaterial {
+        let mut mat = BSDFMaterial::default();
+
+        if let Some(index) = hit.node {
+            if let Some(material) = ctx.nodes[index].material {
+                let c = ctx.nodes[material as usize]
+                    .values
+                    .get(FTValueRole::Color, vec![0.5, 0.5, 0.5]);
+                mat.base_color[0] = c[0] + ((hit.pattern_hash) - 0.5) * 0.5;
+                mat.base_color[1] = c[1] + ((hit.pattern_hash) - 0.5) * 0.5;
+                mat.base_color[2] = c[2] + ((hit.pattern_hash) - 0.5) * 0.5;
+            }
+        }
+
+        mat
+    }
+
     /// Mixes two materials.
     pub fn mix(&mut self, mat1: &BSDFMaterial, mat2: &BSDFMaterial, t: f32) {
         self.base_color = lerp(mat1.base_color, mat2.base_color, t);
