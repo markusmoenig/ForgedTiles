@@ -268,8 +268,11 @@ impl Compiler {
                     self.parser.current.lexeme
                 ),
             ) {
+                // Values
                 self.consume(TokenType::Equal, "Expected '=' after property name.");
-                if self.check(TokenType::Number) {
+                if self.check(TokenType::Number)
+                    && FTExpressionRole::from_string(&property).is_none()
+                {
                     if let Ok(number) = self.parser.current.lexeme.parse::<f32>() {
                         //println!("{} = {}", property, number);
                         if !node.values.add_string_based(&property, vec![number]) {
@@ -322,6 +325,16 @@ impl Compiler {
                     } else {
                         node.map.insert(property, vec![map_value]);
                         self.advance();
+                    }
+                } else if self.check(TokenType::String) {
+                    if let Some(role) = FTExpressionRole::from_string(&property) {
+                        // Expression!
+                        node.expressions
+                            .add(role, self.parser.current.lexeme.trim_matches('"'));
+                        self.advance();
+                        //let v = node.expressions.eval(role, vec![], 1.0);
+                    } else {
+                        self.error_at_current(&format!("Unknown expression '{}'.", property));
                     }
                 } else {
                     self.error_at_current(&format!(

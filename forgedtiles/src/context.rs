@@ -66,7 +66,7 @@ impl FTContext {
             .values
             .get(FTValueRole::Height, vec![1.0])[0];
 
-        let face_thickness = self.nodes[face_index as usize]
+        let mut face_thickness = self.nodes[face_index as usize]
             .values
             .get(FTValueRole::Thickness, vec![0.1])[0];
 
@@ -115,6 +115,20 @@ impl FTContext {
                 0.0,
             ),
         );
+
+        if let Some(node) = hit.node {
+            face_thickness = self.nodes[node]
+                .expressions
+                .eval(
+                    FTExpressionRole::Extrusion,
+                    vec![
+                        (FTExpressionParam::Hash, hit.pattern_hash),
+                        (FTExpressionParam::Thickness, face_thickness),
+                    ],
+                    face_thickness,
+                )
+                .clamp(0.0, face_thickness);
+        }
 
         // Extrude in the direction of the face
         hit.distance = match &self.nodes[face_index as usize].sub_role {

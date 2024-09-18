@@ -1,6 +1,6 @@
 use crate::prelude::*;
 
-#[derive(Serialize, Deserialize,PartialEq, Clone, Debug)]
+#[derive(Serialize, Deserialize, PartialEq, Clone, Debug)]
 pub enum NodeRole {
     Shape,
     Pattern,
@@ -40,8 +40,10 @@ pub struct Node {
 
     pub name: String,
 
-    /// Arrays of f32 values associated with a given role (width, height, etc)
+    /// Arrays of f32 values associated with a given role (length, height, etc)
     pub values: FTValues,
+    /// Arrays of expressions for a given role (extrusion etc)
+    pub expressions: FTExpressions,
     /// The map contains String lists.
     pub map: FxHashMap<String, Vec<String>>,
     /// Array of indices to other nodes.
@@ -59,6 +61,7 @@ impl Node {
             name: "".to_string(),
 
             values: FTValues::default(),
+            expressions: FTExpressions::default(),
             map: FxHashMap::default(),
             links: vec![],
 

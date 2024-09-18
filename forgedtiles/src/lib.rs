@@ -2,6 +2,7 @@ pub mod bsdf;
 pub mod camera;
 pub mod compiler;
 pub mod context;
+pub mod expression;
 pub mod hit;
 pub mod material;
 pub mod node;
@@ -17,6 +18,7 @@ pub mod prelude {
 
     pub use crate::compiler::FTError;
     pub use crate::context::FTContext;
+    pub use crate::expression::*;
     pub use crate::hit::*;
     pub use crate::material::*;
     pub use crate::node::*;
