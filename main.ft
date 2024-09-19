@@ -1,5 +1,5 @@
-let mat = Material<BSDF> : color = #FF0000, modifier = 0.0;
-let brick = Shape<Box> : material = mat, length = 0.2, height = 0.15, rounding = 0.02, extrusion = thickness - hash * 0.001;
+let mat = Material<BSDF> : color = #FF0000, modifier = hash;
+let brick = Shape<Box> : material = mat, length = 0.2, height = 0.15, rounding = 0.08 * hash;
 let disc = Shape<Disc> : material = mat, radius = 0.1;
 
 let brick_row = Pattern<Repeat> : offset = 0.0, spacing = 0.01, content = [brick];

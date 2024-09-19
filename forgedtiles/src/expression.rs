@@ -7,6 +7,9 @@ use FTExpressionRole::*;
 pub enum FTExpressionRole {
     Extrusion,
     Modifier,
+    Rounding,
+    Annular,
+    Border,
 
     Anisotropic,
     Metallic,
@@ -27,6 +30,10 @@ impl FTExpressionRole {
         match s {
             "extrusion" => Some(Extrusion),
             "modifier" => Some(Modifier),
+            "rounding" => Some(Rounding),
+            "annular" => Some(Annular),
+            "border" => Some(Border),
+
             "anisotropic" => Some(Anisotropic),
             "metallic" => Some(Metallic),
             "roughness" => Some(Roughness),

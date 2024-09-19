@@ -10,14 +10,17 @@ pub struct FTHitStruct {
 
     pub last_size: Vec2f,
 
-    pub pattern_id: i32,
-    pub pattern_hash: f32,
-
     pub face: Vec3f,
 
     pub origin: Vec2f,
 
     pub tile_id: Vec2f,
+
+    pub pattern_id: i32,
+    pub pattern_hash: f32,
+
+    pub working_pattern_id: i32,
+    pub working_pattern_hash: f32,
 
     pub working_seed: f32,
     pub working_seed_id: i32,
@@ -42,14 +45,17 @@ impl FTHitStruct {
 
             last_size: Vec2f::zero(),
 
-            pattern_id: 0,
-            pattern_hash: 0.0,
-
             face: Vec3f::zero(),
 
             origin: Vec2f::zero(),
 
             tile_id: Vec2f::zero(),
+
+            pattern_id: 0,
+            pattern_hash: 0.0,
+
+            working_pattern_id: 0,
+            working_pattern_hash: 0.0,
 
             working_seed: 0.0,
             working_seed_id: 0,

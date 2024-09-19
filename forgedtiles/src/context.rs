@@ -693,16 +693,29 @@ impl FTContext {
                 Box => {
                     let length = self.get_value_default(index, FTValueRole::Length, vec![1.0])[0];
                     let height = self.get_value_default(index, FTValueRole::Height, vec![1.0])[0];
-                    let rounding =
-                        self.get_value_default(index, FTValueRole::Rounding, vec![0.0])[0];
-                    distance = crate::sdf::sdf_box2d(p, pos, length / 2.0, height / 2.0, rounding);
+                    // let rounding =
+                    //     self.get_value_default(index, FTValueRole::Rounding, vec![0.0])[0];
+                    let rounding = self.nodes[index].expressions.eval(
+                        FTExpressionRole::Rounding,
+                        vec![(FTExpressionParam::Hash, hit.working_pattern_hash)],
+                        0.0,
+                    );
+                    let hole = self.nodes[index].expressions.eval(
+                        FTExpressionRole::Annular,
+                        vec![(FTExpressionParam::Hash, hit.working_pattern_hash)],
+                        0.0,
+                    );
+                    distance = crate::sdf::sdf_box2d(
+                        p,
+                        pos,
+                        length / 2.0 - hole,
+                        height / 2.0 - hole,
+                        rounding,
+                    );
 
-                    // let hole = coll.get_f32_default("Hole", 0.0) * scale;
-
-                    // let mut d = length(p - self.position(&coll) * scale) - radius * scale + hole;
-                    // if hole > 0.0 {
-                    //     d = d.abs() - hole;
-                    // }
+                    if hole > 0.0 {
+                        distance = distance.abs() - hole;
+                    }
 
                     hit.last_size = self.get_dim_default(index);
                     adjust_distances(index, distance, hit);
@@ -732,14 +745,15 @@ impl FTContext {
 
                         let u = (p - vec2f(offset * dim.x, pos.y - dim.y / 2.0))
                             / vec2f(dim.x + spacing, dim.y + pos.y);
-                        let pattern_hash = crate::sdf::hash21(floor(u) + hit.working_seed);
-                        let pattern_id = ((pattern_hash * 10000.0).floor() as i32) % 10000;
+                        hit.working_pattern_hash = crate::sdf::hash21(floor(u) + hit.working_seed);
+                        hit.working_pattern_id =
+                            ((hit.working_pattern_hash * 10000.0).floor() as i32) % 10000;
 
                         distance = self.distance(content, r, pos, hit);
                         if distance < 0.0 {
                             //hit.distance = distance;
-                            hit.pattern_hash = pattern_hash;
-                            hit.pattern_id = pattern_id;
+                            hit.pattern_hash = hit.working_pattern_hash;
+                            hit.pattern_id = hit.working_pattern_id;
                         }
                     }
                 }
