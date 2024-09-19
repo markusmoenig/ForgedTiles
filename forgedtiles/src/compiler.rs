@@ -270,7 +270,26 @@ impl Compiler {
             ) {
                 // Values
                 self.consume(TokenType::Equal, "Expected '=' after property name.");
-                if self.check(TokenType::Number)
+
+                if let Some(role) = FTExpressionRole::from_string(&property) {
+                    let mut expr_str = String::new();
+
+                    loop {
+                        if self.check(TokenType::Semicolon)
+                            || self.check(TokenType::Comma)
+                            || self.check(TokenType::Eof)
+                        {
+                            break;
+                        } else {
+                            expr_str += &self.parser.current.lexeme;
+                            self.advance();
+                        }
+                    }
+
+                    //println!("{:?} {}", role, expr_str);
+                    // Add the expression
+                    node.expressions.add(role, &expr_str);
+                } else if self.check(TokenType::Number)
                     && FTExpressionRole::from_string(&property).is_none()
                 {
                     if let Ok(number) = self.parser.current.lexeme.parse::<f32>() {
@@ -325,16 +344,6 @@ impl Compiler {
                     } else {
                         node.map.insert(property, vec![map_value]);
                         self.advance();
-                    }
-                } else if self.check(TokenType::String) {
-                    if let Some(role) = FTExpressionRole::from_string(&property) {
-                        // Expression!
-                        node.expressions
-                            .add(role, self.parser.current.lexeme.trim_matches('"'));
-                        self.advance();
-                        //let v = node.expressions.eval(role, vec![], 1.0);
-                    } else {
-                        self.error_at_current(&format!("Unknown expression '{}'.", property));
                     }
                 } else {
                     self.error_at_current(&format!(

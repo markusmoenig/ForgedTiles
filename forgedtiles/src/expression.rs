@@ -6,12 +6,39 @@ use FTExpressionRole::*;
 #[derive(Serialize, Deserialize, Debug, PartialEq, Copy, Clone)]
 pub enum FTExpressionRole {
     Extrusion,
+    Modifier,
+
+    Anisotropic,
+    Metallic,
+    Roughness,
+    Subsurface,
+    SpecularTint,
+    Sheen,
+    SheenTint,
+    Clearcoat,
+    ClearcoatGloss,
+    Emission,
+    Transmission,
+    IOR,
 }
 
 impl FTExpressionRole {
     pub fn from_string(s: &str) -> Option<FTExpressionRole> {
         match s {
             "extrusion" => Some(Extrusion),
+            "modifier" => Some(Modifier),
+            "anisotropic" => Some(Anisotropic),
+            "metallic" => Some(Metallic),
+            "roughness" => Some(Roughness),
+            "subsurface" => Some(Subsurface),
+            "specular_tint" => Some(SpecularTint),
+            "sheen" => Some(Sheen),
+            "sheen_tint" => Some(SheenTint),
+            "clearcoat" => Some(Clearcoat),
+            "clearcoat_gloss" => Some(ClearcoatGloss),
+            "emission" => Some(Emission),
+            "transmission" => Some(Transmission),
+            "ior" => Some(IOR),
             _ => None,
         }
     }

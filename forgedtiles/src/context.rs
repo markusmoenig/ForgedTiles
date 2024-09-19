@@ -385,24 +385,30 @@ impl FTContext {
                     }
 
                     if hit.distance < 0.0 {
-                        if let Some(node) = hit.node {
-                            if let Some(material) = self.nodes[node].material {
-                                let col = self.nodes[material as usize]
-                                    .values
-                                    .get(FTValueRole::Color, vec![0.5, 0.5, 0.5]);
-                                color[0] = col[0];
-                                color[1] = col[1];
-                                color[2] = col[2];
+                        let material = BSDFMaterial::from_hit(self, &hit);
 
-                                color[0] = col[0] + ((hit.pattern_hash) - 0.5) * 0.5;
-                                color[1] = col[1] + ((hit.pattern_hash) - 0.5) * 0.5;
-                                color[2] = col[2] + ((hit.pattern_hash) - 0.5) * 0.5;
-                            } else {
-                                color = vec3f(0.5, 0.5, 0.5);
-                            }
-                        } else {
-                            color = vec3f(0.5, 0.5, 0.5);
-                        }
+                        color[0] = material.base_color[0];
+                        color[1] = material.base_color[1];
+                        color[2] = material.base_color[2];
+                        //
+                        // if let Some(node) = hit.node {
+                        //     if let Some(material) = self.nodes[node].material {
+                        //         let col = self.nodes[material as usize]
+                        //             .values
+                        //             .get(FTValueRole::Color, vec![0.5, 0.5, 0.5]);
+                        //         color[0] = col[0];
+                        //         color[1] = col[1];
+                        //         color[2] = col[2];
+
+                        //         color[0] = col[0] + ((hit.pattern_hash) - 0.5) * 0.5;
+                        //         color[1] = col[1] + ((hit.pattern_hash) - 0.5) * 0.5;
+                        //         color[2] = col[2] + ((hit.pattern_hash) - 0.5) * 0.5;
+                        //     } else {
+                        //         color = vec3f(0.5, 0.5, 0.5);
+                        //     }
+                        // } else {
+                        //     color = vec3f(0.5, 0.5, 0.5);
+                        // }
                     }
 
                     let out = [
@@ -480,7 +486,6 @@ impl FTContext {
                             let mut hit_point = Vec3f::zero();
                             let mut hit_distance = 0.0;
                             let mut hit_normal = Vec3f::zero();
-                            let mut mat = BSDFMaterial::default();
                             let mut t = 0.0;
 
                             for _ in 0..30 {
@@ -494,22 +499,11 @@ impl FTContext {
                                 //println!("aa {}", ft_hit.distance);
 
                                 if ft_hit.distance < 0.001 {
-                                    if let Some(node) = ft_hit.node {
-                                        has_hit = true;
-                                        hit_point = p;
-                                        hit_distance = t;
-                                        hit_normal = self.face_normal(p, 0, Vec2f::zero());
-                                        if let Some(material) = self.nodes[node].material {
-                                            let col = self.nodes[material as usize]
-                                                .values
-                                                .get(FTValueRole::Color, vec![0.5, 0.5, 0.5]);
-                                            mat.base_color[0] = col[0];
-                                            mat.base_color[1] = col[1];
-                                            mat.base_color[2] = col[2];
-                                        } else {
-                                            color = vec3f(0.5, 0.5, 0.5);
-                                        }
-                                    }
+                                    has_hit = true;
+                                    hit_point = p;
+                                    hit_distance = t;
+                                    hit_normal = self.face_normal(p, 0, Vec2f::zero());
+                                    state.mat = BSDFMaterial::from_hit(self, &ft_hit);
                                     break;
                                 }
                                 t += ft_hit.distance;
@@ -518,7 +512,6 @@ impl FTContext {
                             if has_hit {
                                 state.depth = depth;
 
-                                state.mat.clone_from(&mat);
                                 state.mat.roughness = max(state.mat.roughness, 0.001);
                                 // Remapping from clearcoat gloss to roughness
                                 state.mat.clearcoat_roughness =
