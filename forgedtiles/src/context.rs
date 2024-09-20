@@ -18,6 +18,8 @@ pub struct FTContext {
     pub variables: FxHashMap<String, usize>,
 
     pub output: Option<usize>,
+
+    pub meta_delete: Vec<i32>,
 }
 
 impl Default for FTContext {
@@ -38,6 +40,8 @@ impl FTContext {
             variables: FxHashMap::default(),
 
             output: None,
+
+            meta_delete: vec![],
         }
     }
 
@@ -232,7 +236,7 @@ impl FTContext {
         }
         let output = self.output.unwrap_or(self.nodes.len() - 1);
         let indices = if self.nodes[output].role != Face {
-            vec![output as u16]
+            vec![output as i32]
         } else {
             self.nodes[output].links.clone()
         };
@@ -317,7 +321,7 @@ impl FTContext {
         }
         let output = self.output.unwrap_or(self.nodes.len() - 1);
         let indices = if self.nodes[output].role != Face {
-            vec![output as u16]
+            vec![output as i32]
         } else {
             self.nodes[output].links.clone()
         };
@@ -675,10 +679,22 @@ impl FTContext {
             if distance < hit.min_distance {
                 hit.min_distance = distance;
                 hit.node = Some(index);
+
+                hit.seed = hit.working_seed;
+                hit.seed_id = hit.working_seed_id;
+
+                hit.pattern_hash = hit.working_pattern_hash;
+                hit.pattern_id = hit.working_pattern_id;
             }
 
             if hit.node.is_none() {
                 hit.node = Some(index);
+
+                hit.seed = hit.working_seed;
+                hit.seed_id = hit.working_seed_id;
+
+                hit.pattern_hash = hit.working_pattern_hash;
+                hit.pattern_id = hit.working_pattern_id;
             }
         }
 
@@ -686,11 +702,23 @@ impl FTContext {
         match &self.nodes[index].role {
             Shape => match &self.nodes[index].sub_role {
                 Disc => {
+                    if self.meta_delete.contains(&hit.working_seed_id)
+                        || self.meta_delete.contains(&hit.working_pattern_id)
+                    {
+                        return hit.distance;
+                    }
+
                     let radius = self.get_value_default(index, FTValueRole::Radius, vec![0.5])[0];
                     distance = length(p - pos) - radius;
                     adjust_distances(index, distance, hit);
                 }
                 Box => {
+                    if self.meta_delete.contains(&hit.working_seed_id)
+                        || self.meta_delete.contains(&hit.working_pattern_id)
+                    {
+                        return hit.distance;
+                    }
+
                     let length = self.get_value_default(index, FTValueRole::Length, vec![1.0])[0];
                     let height = self.get_value_default(index, FTValueRole::Height, vec![1.0])[0];
                     // let rounding =
@@ -705,8 +733,13 @@ impl FTContext {
                         vec![(FTExpressionParam::Hash, hit.working_pattern_hash)],
                         0.0,
                     );
+                    let rotation = self.nodes[index].expressions.eval(
+                        FTExpressionRole::Rotation,
+                        vec![(FTExpressionParam::Hash, hit.working_pattern_hash)],
+                        0.0,
+                    );
                     distance = crate::sdf::sdf_box2d(
-                        p,
+                        crate::sdf::rot((hit.working_pattern_hash - 0.5) * rotation) * p,
                         pos,
                         length / 2.0 - hole,
                         height / 2.0 - hole,
@@ -750,11 +783,6 @@ impl FTContext {
                             ((hit.working_pattern_hash * 10000.0).floor() as i32) % 10000;
 
                         distance = self.distance(content, r, pos, hit);
-                        if distance < 0.0 {
-                            //hit.distance = distance;
-                            hit.pattern_hash = hit.working_pattern_hash;
-                            hit.pattern_id = hit.working_pattern_id;
-                        }
                     }
                 }
                 Stack => {
@@ -785,11 +813,6 @@ impl FTContext {
                                 as usize;
 
                             distance = self.distance(content, p, pos, hit);
-                            if hit.distance <= 0.0 {
-                                hit.seed = hit.working_seed;
-                                hit.seed_id = hit.working_seed_id;
-                                break;
-                            }
 
                             pos.y += hit.last_size.y + spacing;
 
@@ -825,7 +848,6 @@ impl FTContext {
                     hit.distance = distance;
 
                     if cut_out < 0.0 {
-                        //hit.min_distance = f32::MAX;
                         hit.node = None;
                         hit.pattern_hash = 0.0;
                         hit.pattern_id = 0;

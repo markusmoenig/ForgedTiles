@@ -6,6 +6,7 @@ pub enum NodeRole {
     Pattern,
     Face,
     Material,
+    Meta,
 }
 
 #[derive(Serialize, Deserialize, PartialEq, Clone, Debug)]
@@ -27,6 +28,9 @@ pub enum NodeSubRole {
     MiddleY,
 
     BSDF,
+
+    MetaMaterial,
+    MetaDelete,
 }
 
 //use FTValueRole::*;
@@ -47,7 +51,7 @@ pub struct Node {
     /// The map contains String lists.
     pub map: FxHashMap<String, Vec<String>>,
     /// Array of indices to other nodes.
-    pub links: Vec<u16>,
+    pub links: Vec<i32>,
     /// Material index
     pub material: Option<u8>,
 }

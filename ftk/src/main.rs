@@ -16,8 +16,8 @@ fn main() {
         Ok(ctx) => {
             let mut buffer = vec![0; width * height * 4];
             let start = get_time();
-            ctx.render(width, height, &mut buffer);
-            // ctx.render_bsdf_sample(width, height, &mut buffer, 1);
+            // ctx.render(width, height, &mut buffer);
+            ctx.render_bsdf_sample(width, height, &mut buffer, 1);
             println!("Image rendered in {} ms", get_time() - start);
 
             let path = "image.png";

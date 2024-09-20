@@ -9,7 +9,7 @@ pub enum FTExpressionRole {
     Modifier,
     Rounding,
     Annular,
-    Border,
+    Rotation,
 
     Anisotropic,
     Metallic,
@@ -32,7 +32,7 @@ impl FTExpressionRole {
             "modifier" => Some(Modifier),
             "rounding" => Some(Rounding),
             "annular" => Some(Annular),
-            "border" => Some(Border),
+            "rotation" => Some(Rotation),
 
             "anisotropic" => Some(Anisotropic),
             "metallic" => Some(Metallic),

@@ -84,14 +84,33 @@ impl BSDFMaterial {
         let mut mat = BSDFMaterial::default();
 
         if let Some(index) = hit.node {
-            if let Some(material) = ctx.nodes[index].material {
+            let mut material: Option<usize> = None;
+
+            if let Some(material_index) = ctx.nodes[index].material {
+                material = Some(material_index as usize);
+            }
+
+            // Check if the material gets replaced via a seed or hash
+
+            for node in &ctx.nodes {
+                if node.sub_role == NodeSubRole::MetaMaterial
+                    && (node.links.contains(&hit.seed_id) || node.links.contains(&hit.pattern_id))
+                {
+                    if let Some(index) = node.material {
+                        material = Some(index as usize);
+                        break;
+                    }
+                }
+            }
+
+            if let Some(material) = material {
                 // Color
-                let c = ctx.nodes[material as usize]
+                let c = ctx.nodes[material]
                     .values
                     .get(FTValueRole::Color, vec![0.5, 0.5, 0.5]);
 
                 let hash = hit.pattern_hash - 0.5;
-                let modifier = ctx.nodes[material as usize]
+                let modifier = ctx.nodes[material]
                     .expressions
                     .eval(
                         FTExpressionRole::Modifier,
@@ -103,73 +122,73 @@ impl BSDFMaterial {
                 mat.base_color[1] = c[1] + modifier;
                 mat.base_color[2] = c[2] + modifier;
                 // Anisotropic
-                mat.anisotropic = ctx.nodes[material as usize].expressions.eval(
+                mat.anisotropic = ctx.nodes[material].expressions.eval(
                     FTExpressionRole::Anisotropic,
                     vec![(FTExpressionParam::Hash, hit.pattern_hash)],
                     0.0,
                 );
                 // Metallic
-                mat.metallic = ctx.nodes[material as usize].expressions.eval(
+                mat.metallic = ctx.nodes[material].expressions.eval(
                     FTExpressionRole::Metallic,
                     vec![(FTExpressionParam::Hash, hit.pattern_hash)],
                     0.0,
                 );
                 // Roughness
-                mat.roughness = ctx.nodes[material as usize].expressions.eval(
+                mat.roughness = ctx.nodes[material].expressions.eval(
                     FTExpressionRole::Roughness,
                     vec![(FTExpressionParam::Hash, hit.pattern_hash)],
                     0.5,
                 );
                 // Subsurface
-                mat.subsurface = ctx.nodes[material as usize].expressions.eval(
+                mat.subsurface = ctx.nodes[material].expressions.eval(
                     FTExpressionRole::Subsurface,
                     vec![(FTExpressionParam::Hash, hit.pattern_hash)],
                     0.0,
                 );
                 // Specular Tint
-                mat.specular_tint = ctx.nodes[material as usize].expressions.eval(
+                mat.specular_tint = ctx.nodes[material].expressions.eval(
                     FTExpressionRole::SpecularTint,
                     vec![(FTExpressionParam::Hash, hit.pattern_hash)],
                     0.0,
                 );
                 // Sheen
-                mat.sheen = ctx.nodes[material as usize].expressions.eval(
+                mat.sheen = ctx.nodes[material].expressions.eval(
                     FTExpressionRole::Sheen,
                     vec![(FTExpressionParam::Hash, hit.pattern_hash)],
                     0.0,
                 );
                 // Sheen Tint
-                mat.sheen_tint = ctx.nodes[material as usize].expressions.eval(
+                mat.sheen_tint = ctx.nodes[material].expressions.eval(
                     FTExpressionRole::SheenTint,
                     vec![(FTExpressionParam::Hash, hit.pattern_hash)],
                     0.0,
                 );
                 // Clearcoat
-                mat.clearcoat = ctx.nodes[material as usize].expressions.eval(
+                mat.clearcoat = ctx.nodes[material].expressions.eval(
                     FTExpressionRole::Clearcoat,
                     vec![(FTExpressionParam::Hash, hit.pattern_hash)],
                     0.0,
                 );
                 // Clearcoat Gloss
-                mat.clearcoat_roughness = ctx.nodes[material as usize].expressions.eval(
+                mat.clearcoat_roughness = ctx.nodes[material].expressions.eval(
                     FTExpressionRole::ClearcoatGloss,
                     vec![(FTExpressionParam::Hash, hit.pattern_hash)],
                     0.0,
                 );
                 // Emission
-                mat.emission = ctx.nodes[material as usize].expressions.eval(
+                mat.emission = ctx.nodes[material].expressions.eval(
                     FTExpressionRole::Emission,
                     vec![(FTExpressionParam::Hash, hit.pattern_hash)],
                     0.0,
                 ) * mat.base_color;
                 // Transmission
-                mat.spec_trans = ctx.nodes[material as usize].expressions.eval(
+                mat.spec_trans = ctx.nodes[material].expressions.eval(
                     FTExpressionRole::Transmission,
                     vec![(FTExpressionParam::Hash, hit.pattern_hash)],
                     0.0,
                 );
                 // IOR
-                mat.ior = ctx.nodes[material as usize].expressions.eval(
+                mat.ior = ctx.nodes[material].expressions.eval(
                     FTExpressionRole::IOR,
                     vec![(FTExpressionParam::Hash, hit.pattern_hash)],
                     1.5,

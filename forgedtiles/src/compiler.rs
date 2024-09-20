@@ -213,6 +213,26 @@ impl Compiler {
                             }
                         }
                     }
+                    "Meta" => {
+                        self.consume(TokenType::Less, "Expected '<'.");
+                        if let Some(meta) = self
+                            .consume(TokenType::Identifier, "Expected a valid face after 'Face'.")
+                        {
+                            match meta.as_str() {
+                                "Material" => {
+                                    node =
+                                        Some(Node::new(NodeRole::Meta, NodeSubRole::MetaMaterial));
+                                }
+                                "Delete" => {
+                                    node = Some(Node::new(NodeRole::Meta, NodeSubRole::MetaDelete));
+                                }
+                                _ => self.error_at_current(&format!(
+                                    "Unknown meta directive '{}'.",
+                                    meta
+                                )),
+                            }
+                        }
+                    }
                     _ => {
                         self.error_at_current(&format!("Unknown type '{}'.", node_type));
                     }
@@ -239,6 +259,7 @@ impl Compiler {
                             NodeRole::Material => {
                                 ctx.materials.push(ctx.nodes.len() as u8);
                             }
+                            _ => {}
                         }
                         ctx.nodes.push(node.clone());
                     }
@@ -338,7 +359,15 @@ impl Compiler {
                         }
 
                         self.advance();
-                        if map_value != "]" {
+                        if node.role == NodeRole::Meta {
+                            // For meta nodes read the list of seeds / hashes
+                            if let Ok(first) = map_value.parse::<i32>() {
+                                node.links = self.read_number_list_as_i32_list(first);
+                                if node.sub_role == NodeSubRole::MetaDelete {
+                                    ctx.meta_delete.append(&mut node.links);
+                                }
+                            }
+                        } else if map_value != "]" {
                             node.links = self.read_string_list_as_ref_list(map_value, ctx);
                         }
                     } else {
@@ -362,8 +391,39 @@ impl Compiler {
         }
     }
 
+    /// Read a comma separated list of integers and take their references as link list.
+    pub fn read_number_list_as_i32_list(&mut self, first: i32) -> Vec<i32> {
+        let mut list: Vec<i32> = vec![first];
+
+        loop {
+            if self.check(TokenType::Comma) {
+                self.advance();
+            } else if self.check(TokenType::Eof) {
+                break;
+            }
+
+            if self.check(TokenType::Number) {
+                if let Ok(v) = self.current().lexeme.parse::<i32>() {
+                    list.push(v);
+                }
+                self.advance();
+            } else if self.check(TokenType::RightBracket) {
+                self.advance();
+                break;
+            } else {
+                self.error_at_current(&format!(
+                    "Expected ']' at end of list, got '{}'.",
+                    self.parser.current.lexeme
+                ));
+                break;
+            }
+        }
+
+        list
+    }
+
     /// Read a comma separated list of strings and take their references as link list.
-    pub fn read_string_list_as_ref_list(&mut self, first: String, ctx: &FTContext) -> Vec<u16> {
+    pub fn read_string_list_as_ref_list(&mut self, first: String, ctx: &FTContext) -> Vec<i32> {
         let mut list: Vec<String> = vec![first];
 
         loop {
@@ -388,11 +448,11 @@ impl Compiler {
             }
         }
 
-        let mut values: Vec<u16> = vec![];
+        let mut values: Vec<i32> = vec![];
 
         for i in list {
             if let Some(value) = ctx.variables.get(&i) {
-                values.push(*value as u16);
+                values.push(*value as i32);
             } else {
                 self.error_at_current(&format!("Unknown variable ('{}').", i));
             }
