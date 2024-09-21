@@ -13,6 +13,8 @@ let stone = Shape<Box> : material = mat2, length = 0.1, height = 0.191;
 let stone_stack = Pattern<Stack> : content = [stone], spacing = 0.01;
 let stone_group = Pattern<Group> : x = 0.0, y = 0.0, length = 0.1, height = 1.0, content = [stone_stack];
 
-let meta_material = Meta<Material> : material = white, content = [0, 1961];
+let meta_material = Meta<Delete> : material = white, content = [1961];
 
-let face = Face*<Bottom> : thickness = 0.05, height = 1.0, content = [brick_stack, stone_group];
+let window = Pattern<Group> : x = 0.5, y = 0.5, content = [];
+
+let face = Face*<Right> : thickness = 0.05, height = 1.0, content = [brick_stack, stone_group];

@@ -74,8 +74,6 @@ impl FTContext {
             .values
             .get(FTValueRole::Thickness, vec![0.1])[0];
 
-        hit.face = vec3f(tile_id.x + face_length, face_height, face_thickness);
-
         fn op_extrusion_x(p: Vec3f, d: f32, h: f32) -> f32 {
             let w = Vec2f::new(d, abs(p.x) - h);
             min(max(w.x, w.y), 0.0) + length(max(w, Vec2f::zero()))
@@ -89,14 +87,20 @@ impl FTContext {
         // Get the 2D positiion and the 2D offset based on the wall type.
         let half_length = face_length / 2.0;
         let (p2d, pos) = match &self.nodes[face_index as usize].sub_role {
-            NodeSubRole::MiddleX | NodeSubRole::Bottom | NodeSubRole::Top => (
-                vec2f(p.x, p.y),
-                vec2f(tile_id.x + half_length, face_height / 2.0),
-            ),
-            NodeSubRole::MiddleY | NodeSubRole::Left | NodeSubRole::Right => (
-                vec2f(p.z, p.y),
-                vec2f(tile_id.y + half_length, face_height / 2.0),
-            ),
+            NodeSubRole::MiddleX | NodeSubRole::Bottom | NodeSubRole::Top => {
+                hit.face = vec3f(tile_id.x + face_length, face_height, face_thickness);
+                (
+                    vec2f(p.x, p.y),
+                    vec2f(tile_id.x + half_length, face_height / 2.0),
+                )
+            }
+            NodeSubRole::MiddleY | NodeSubRole::Left | NodeSubRole::Right => {
+                hit.face = vec3f(tile_id.y + face_length, face_height, face_thickness);
+                (
+                    vec2f(p.z, p.y),
+                    vec2f(tile_id.y + half_length, face_height / 2.0),
+                )
+            }
             _ => (Vec2f::zero(), Vec2f::zero()),
         };
 
@@ -230,7 +234,7 @@ impl FTContext {
     }
 
     /// Computes the pixel at the given position.
-    pub fn face_pixel_at(&self, p: Vec2f) -> Option<[u8; 4]> {
+    pub fn face_pixel_at(&self, mut p: Vec2f) -> Option<[u8; 4]> {
         if self.nodes.is_empty() {
             return None;
         }
@@ -266,18 +270,15 @@ impl FTContext {
             ..Default::default()
         };
 
-        // let mut dist = FTHitStruct::default();
-        // let mut hit_index: Option<usize> = None;
+        // Scale down to one tile unit
+        p.y *= face.y;
+
         for index in &indices {
             let mut pos = vec2f(0.0, 0.0);
             if self.nodes[*index as usize].role == NodeRole::Shape {
                 pos = vec2f(0.5, 0.5);
             }
             self.distance(*index as usize, p, pos, &mut hit);
-            // if hit.distance < 0.0 && hit.distance < dist.distance {
-            //     dist.clone_from(&hit);
-            //     hit_index = Some(*index as usize);
-            // }
         }
 
         if hit.distance < 0.0 {
@@ -707,7 +708,6 @@ impl FTContext {
                     {
                         return hit.distance;
                     }
-
                     let radius = self.get_value_default(index, FTValueRole::Radius, vec![0.5])[0];
                     distance = length(p - pos) - radius;
                     adjust_distances(index, distance, hit);
@@ -718,7 +718,6 @@ impl FTContext {
                     {
                         return hit.distance;
                     }
-
                     let length = self.get_value_default(index, FTValueRole::Length, vec![1.0])[0];
                     let height = self.get_value_default(index, FTValueRole::Height, vec![1.0])[0];
                     // let rounding =
@@ -776,7 +775,9 @@ impl FTContext {
                             dim.x + spacing,
                         );
 
-                        let u = (p - vec2f(offset * dim.x, pos.y - dim.y / 2.0))
+                        let u = (p
+                            - vec2f(offset * dim.x, pos.y - dim.y / 2.0)
+                            - vec2f(hit.tile_id.x, 0.0))
                             / vec2f(dim.x + spacing, dim.y + pos.y);
                         hit.working_pattern_hash = crate::sdf::hash21(floor(u) + hit.working_seed);
                         hit.working_pattern_id =
@@ -813,7 +814,6 @@ impl FTContext {
                                 as usize;
 
                             distance = self.distance(content, p, pos, hit);
-
                             pos.y += hit.last_size.y + spacing;
 
                             //println!("{} {}", pos.y + hit.last_size.y, top_end);
@@ -848,6 +848,7 @@ impl FTContext {
                     hit.distance = distance;
 
                     if cut_out < 0.0 {
+                        hit.min_distance = 0.001;
                         hit.node = None;
                         hit.pattern_hash = 0.0;
                         hit.pattern_id = 0;
