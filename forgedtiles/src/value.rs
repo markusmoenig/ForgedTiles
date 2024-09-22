@@ -15,8 +15,10 @@ pub enum FTValueRole {
     Rotation,
     Spacing,
     Offset,
+    Cutout,
     X,
     Y,
+    Z,
 }
 
 impl FTValueRole {
@@ -33,8 +35,10 @@ impl FTValueRole {
             "rotation" => Some(Rotation),
             "spacing" => Some(Spacing),
             "offset" => Some(Offset),
+            "cutout" => Some(Cutout),
             "x" => Some(X),
             "y" => Some(Y),
+            "z" => Some(Z),
             _ => None,
         }
     }
@@ -79,5 +83,15 @@ impl FTValues {
             }
         }
         default.clone()
+    }
+
+    /// Get the optional values of the given role.
+    pub fn get_option(&self, role: FTValueRole) -> Option<Vec<f32>> {
+        for (r, values) in &self.values {
+            if *r == role {
+                return Some(values.clone());
+            }
+        }
+        None
     }
 }

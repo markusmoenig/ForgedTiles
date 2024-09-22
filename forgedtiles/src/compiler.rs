@@ -352,7 +352,7 @@ impl Compiler {
                             }
                         }
                         self.advance();
-                    } else if property == "content" {
+                    } else if property == "content" || property == "cutout" {
                         if !has_bracket {
                             self.error_at_current("Expected '[' at beginning of content list.");
                             return;
@@ -368,7 +368,14 @@ impl Compiler {
                                 }
                             }
                         } else if map_value != "]" {
-                            node.links = self.read_string_list_as_ref_list(map_value, ctx);
+                            if property == "cutout" {
+                                let cutout = self.read_string_list_as_ref_list(map_value, ctx);
+                                if !cutout.is_empty() {
+                                    node.values.add(FTValueRole::Cutout, vec![cutout[0] as f32]);
+                                }
+                            } else {
+                                node.links = self.read_string_list_as_ref_list(map_value, ctx);
+                            }
                         }
                     } else {
                         node.map.insert(property, vec![map_value]);

@@ -15,6 +15,7 @@ let stone_group = Pattern<Group> : x = 0.0, y = 0.0, length = 0.1, height = 1.0,
 
 let meta_material = Meta<Delete> : material = white, content = [1961];
 
-let window = Pattern<Group> : x = 0.5, y = 0.5, content = [];
+let window_cutout = Shape<Box> : length = 0.2, height = 0.2, rounding = 0.0;
+let window = Pattern<Group> : x = 0.5, y = 0.5, content = [], cutout = [window_cutout];
 
-let face = Face*<Right> : thickness = 0.05, height = 1.0, content = [brick_stack, stone_group];
+let face = Face*<Right> : thickness = 0.05, height = 1.0, content = [brick_stack, stone_group, window];
