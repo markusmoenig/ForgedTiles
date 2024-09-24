@@ -174,14 +174,14 @@ impl Compiler {
                                 "Left" => {
                                     node = Some(Node::new(NodeRole::Face, NodeSubRole::Left));
                                 }
-                                "Top" => {
-                                    node = Some(Node::new(NodeRole::Face, NodeSubRole::Top));
+                                "Front" => {
+                                    node = Some(Node::new(NodeRole::Face, NodeSubRole::Front));
                                 }
                                 "Right" => {
                                     node = Some(Node::new(NodeRole::Face, NodeSubRole::Right));
                                 }
-                                "Bottom" => {
-                                    node = Some(Node::new(NodeRole::Face, NodeSubRole::Bottom));
+                                "Back" => {
+                                    node = Some(Node::new(NodeRole::Face, NodeSubRole::Back));
                                 }
                                 "MiddleX" => {
                                     node = Some(Node::new(NodeRole::Face, NodeSubRole::MiddleX));

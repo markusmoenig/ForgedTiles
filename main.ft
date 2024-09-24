@@ -1,21 +1,12 @@
-let white = Material<BSDF> : color = #FFFFFF, modifier = hash;
-
-let mat = Material<BSDF> : color = #FF0000, modifier = hash;
-let brick = Shape<Box> : material = mat, length = 0.2, height = 0.15, rounding = 0.08 * hash;
-let disc = Shape<Disc> : material = mat, radius = 0.1;
+let mat = Material<BSDF> : color = #A08080, modifier = hash * 0.2, roughness = 1.0;
+let brick = Shape<Box> : material = mat, length = 0.2, height = 0.1, rounding = 0.01;
 
 let brick_row = Pattern<Repeat> : offset = 0.0, spacing = 0.01, content = [brick];
 let brick_row_offset = Pattern<Repeat> : offset = 0.5, spacing = 0.01, content = [brick];
 let brick_stack = Pattern<Stack> : content = [brick_row, brick_row_offset], spacing = 0.01;
 
-let mat2 = Material<BSDF> : color = #00FF00;
-let stone = Shape<Box> : material = mat2, length = 0.1, height = 0.191;
-let stone_stack = Pattern<Stack> : content = [stone], spacing = 0.01;
-let stone_group = Pattern<Group> : x = 0.0, y = 0.0, length = 0.1, height = 1.0, content = [stone_stack];
+let floor_mat = Material<BSDF> : color = #FFFFFF, metallic = 0.0, roughness = 0.0;
+let floor_shape = Shape<Box> : material = floor_mat, length = 1.0, height = 1.0, rounding = 0.0;
 
-let meta_material = Meta<Delete> : material = white, content = [1961];
-
-let window_cutout = Shape<Box> : length = 0.2, height = 0.2, rounding = 0.0;
-let window = Pattern<Group> : x = 0.5, y = 0.5, content = [], cutout = [window_cutout];
-
-let face = Face*<Right> : thickness = 0.05, height = 1.0, content = [brick_stack, stone_group, window];
+let floor_face = Face<Floor> : thickness = 0.001, height = 1.0, content = [floor_shape];
+let wall_face = Face<Left> : thickness = 0.05, height = 1.0, content = [brick_stack];

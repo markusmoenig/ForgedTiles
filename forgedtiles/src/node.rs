@@ -21,9 +21,9 @@ pub enum NodeSubRole {
 
     Floor,
     Left,
-    Top,
+    Back,
     Right,
-    Bottom,
+    Front,
     MiddleX,
     MiddleY,
 

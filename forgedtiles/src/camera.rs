@@ -168,7 +168,7 @@ impl Camera {
         Ray::new(out_origin, normalize(-w))
     }
 
-    pub fn create_tilted_isometric_ray(
+    pub fn create_tilted_iso_ray(
         &self,
         uv: Vec2f,
         screen: Vec2f,

@@ -79,6 +79,11 @@ impl FTContext {
             min(max(w.x, w.y), 0.0) + length(max(w, Vec2f::zero()))
         }
 
+        fn op_extrusion_y(p: Vec3f, d: f32, h: f32) -> f32 {
+            let w = Vec2f::new(d, abs(p.y) - h);
+            min(max(w.x, w.y), 0.0) + length(max(w, Vec2f::zero()))
+        }
+
         fn op_extrusion_z(p: Vec3f, d: f32, h: f32) -> f32 {
             let w = Vec2f::new(d, abs(p.z) - h);
             min(max(w.x, w.y), 0.0) + length(max(w, Vec2f::zero()))
@@ -87,7 +92,7 @@ impl FTContext {
         // Get the 2D positiion and the 2D offset based on the wall type.
         let half_length = face_length / 2.0;
         let (p2d, pos) = match &self.nodes[face_index as usize].sub_role {
-            NodeSubRole::MiddleX | NodeSubRole::Bottom | NodeSubRole::Top => {
+            NodeSubRole::MiddleX | NodeSubRole::Back | NodeSubRole::Front => {
                 hit.face = vec3f(tile_id.x + face_length, face_height, face_thickness);
                 (
                     vec2f(p.x, p.y),
@@ -99,6 +104,13 @@ impl FTContext {
                 (
                     vec2f(p.z, p.y),
                     vec2f(tile_id.y + half_length, face_height / 2.0),
+                )
+            }
+            NodeSubRole::Floor => {
+                hit.face = vec3f(tile_id.x + face_length, face_height, face_thickness);
+                (
+                    vec2f(p.x, p.z),
+                    vec2f(tile_id.x + half_length, face_height / 2.0),
                 )
             }
             _ => (Vec2f::zero(), Vec2f::zero()),
@@ -155,7 +167,7 @@ impl FTContext {
                 dist_2d_min,
                 face_thickness,
             ),
-            NodeSubRole::Top => op_extrusion_z(
+            NodeSubRole::Back => op_extrusion_z(
                 p - vec3f(0.0, 0.0, tile_id.y + face_thickness / 2.0),
                 dist_2d_min,
                 face_thickness,
@@ -165,8 +177,13 @@ impl FTContext {
                 dist_2d_min,
                 face_thickness,
             ),
-            NodeSubRole::Bottom => op_extrusion_z(
+            NodeSubRole::Front => op_extrusion_z(
                 p - vec3f(0.0, 0.0, tile_id.y + 1.0 - face_thickness / 2.0),
+                dist_2d_min,
+                face_thickness,
+            ),
+            NodeSubRole::Floor => op_extrusion_y(
+                p - vec3f(0.0, tile_id.y + face_thickness / 2.0, 0.0),
                 dist_2d_min,
                 face_thickness,
             ),
@@ -442,11 +459,10 @@ impl FTContext {
             return;
         }
 
-        let camera = Camera::new(vec3f(-2., -2., -2.), Vec3f::zero(), 5.0);
+        let camera = Camera::new(vec3f(4., 4., 4.), vec3f(0.0, 0.0, 0.0), 5.0);
 
-        let output = self.output.unwrap_or(self.nodes.len() - 1);
-        if self.nodes[output].role != NodeRole::Face {
-            println!("render_bsdf_sample:: Output is not a face.");
+        if self.faces.is_empty() {
+            println!("render_bsdf_sample:: Need a face to render.");
             return;
         }
 
@@ -456,8 +472,9 @@ impl FTContext {
             .par_rchunks_exact_mut(width * 4)
             .enumerate()
             .for_each(|(j, line)| {
-                let mut rng = rand::thread_rng();
                 for (i, pixel) in line.chunks_exact_mut(4).enumerate() {
+                    let mut rng = rand::thread_rng();
+
                     let i = j * width + i;
                     let x = (i % width) as f32;
                     let y = (i / width) as f32;
@@ -467,7 +484,7 @@ impl FTContext {
 
                     for sample in 0..samples {
                         let mut ray = camera.create_ortho_ray(
-                            vec2f(xx, 1.0 - yy),
+                            vec2f(xx, yy),
                             vec2f(w, h),
                             vec2f(rng.gen(), rng.gen()),
                         );
@@ -496,14 +513,20 @@ impl FTContext {
                             for _ in 0..30 {
                                 let p = ray.at(t);
 
-                                let ft_hit = self.distance_to_face(p, 0, Vec2f::zero());
+                                let mut ft_hit = self.distance_to_face(p, 0, Vec2f::zero());
+                                for face in 1..self.faces.len() {
+                                    let ft = self.distance_to_face(p, face, Vec2f::zero());
+                                    if ft.distance < ft_hit.distance {
+                                        ft_hit.clone_from(&ft);
+                                    }
+                                }
 
                                 if t > 12.0 {
                                     break;
                                 }
                                 //println!("aa {}", ft_hit.distance);
 
-                                if ft_hit.distance < 0.001 {
+                                if ft_hit.distance < 0.0001 {
                                     has_hit = true;
                                     hit_point = p;
                                     hit_distance = t;
@@ -551,7 +574,7 @@ impl FTContext {
 
                                 let scatter_pos = state.fhp + state.normal * EPS;
 
-                                let light_pos = vec3f(-1.0, -2.0, -3.0);
+                                let light_pos = vec3f(1.0, 2.0, 3.0);
 
                                 let radius = 0.2;
 
@@ -621,7 +644,7 @@ impl FTContext {
                                 }
 
                                 ray.d = scatter_sample.l;
-                                ray.o = state.fhp + ray.d * 0.01;
+                                ray.o = state.fhp + ray.d * 0.001;
 
                                 color.x = radiance.x;
                                 color.y = radiance.y;

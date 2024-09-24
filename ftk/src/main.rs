@@ -7,17 +7,21 @@ fn main() {
     let ft = ForgedTiles::new();
 
     let file_name = "main.ft";
-    let width = 600_usize;
-    let height = 600_usize;
+    let width = 65_usize;
+    let height = 65_usize;
 
     let rc = ft.compile(PathBuf::new(), file_name.into());
+
+    let samples = 50;
 
     match rc {
         Ok(ctx) => {
             let mut buffer = vec![0; width * height * 4];
             let start = get_time();
             // ctx.render(width, height, &mut buffer);
-            ctx.render_bsdf_sample(width, height, &mut buffer, 1);
+            for i in 0..samples {
+                ctx.render_bsdf_sample(width, height, &mut buffer, i);
+            }
             println!("Image rendered in {} ms", get_time() - start);
 
             let path = "image.png";
