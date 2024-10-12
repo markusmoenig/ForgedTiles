@@ -7,12 +7,12 @@ fn main() {
     let ft = ForgedTiles::new();
 
     let file_name = "main.ft";
-    let width = 65_usize;
-    let height = 65_usize;
+    let width = 600_usize;
+    let height = 600_usize;
 
     let rc = ft.compile(PathBuf::new(), file_name.into());
 
-    let samples = 50;
+    let samples = 2;
 
     match rc {
         Ok(ctx) => {

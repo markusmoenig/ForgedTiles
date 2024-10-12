@@ -27,6 +27,9 @@ pub struct FTHitStruct {
 
     pub seed: f32,
     pub seed_id: i32,
+
+    pub is_cut_out: bool,
+    pub shape_adder: f32,
 }
 
 impl Default for FTHitStruct {
@@ -62,6 +65,9 @@ impl FTHitStruct {
 
             seed: 0.0,
             seed_id: 0,
+
+            is_cut_out: false,
+            shape_adder: 0.0,
         }
     }
 }

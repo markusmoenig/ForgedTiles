@@ -1,12 +1,16 @@
-let mat = Material<BSDF> : color = #A08080, modifier = hash * 0.2, roughness = 1.0;
-let brick = Shape<Box> : material = mat, length = 0.2, height = 0.1, rounding = 0.01;
+//let floor_mat = Material<BSDF> : color = #FFFFFF, metallic = 0.0, roughness = 0.0;
+//let floor_shape = Shape<Box> : material = floor_mat, length = 1.0, height = 1.0, rounding = 0.0;
 
-let brick_row = Pattern<Repeat> : offset = 0.0, spacing = 0.01, content = [brick];
-let brick_row_offset = Pattern<Repeat> : offset = 0.5, spacing = 0.01, content = [brick];
-let brick_stack = Pattern<Stack> : content = [brick_row, brick_row_offset], spacing = 0.01;
+let leg_mat = Material<BSDF> : color = #3E2731, metallic = 0.0, roughness = 0.0;
+let table_mat = Material<BSDF> : color = #EAD4AA, metallic = 0.0, roughness = 0.0;
 
-let floor_mat = Material<BSDF> : color = #FFFFFF, metallic = 0.0, roughness = 0.0;
-let floor_shape = Shape<Box> : material = floor_mat, length = 1.0, height = 1.0, rounding = 0.0;
+let leg_shape = Shape<Box> : material = leg_mat, length = 0.08, height = 0.08, extrusion = 0.8, rounding = 0.02;
+let table_shape = Shape<Box> : material = table_mat, length = 1.0, height = 1.0, extrusion = 0.05, rounding = 0.02;
 
-let floor_face = Face<Floor> : thickness = 0.001, height = 1.0, content = [floor_shape];
-let wall_face = Face<Left> : thickness = 0.05, height = 1.0, content = [brick_stack];
+let fl_group = Pattern<Group> : x = 0.0, y = 0.0, content = [leg_shape];
+let bl_group = Pattern<Group> : x = 0.0, y = 0.92, content = [leg_shape];
+let br_group = Pattern<Group> : x = 0.92, y = 0.92, content = [leg_shape];
+let fr_group = Pattern<Group> : x = 0.92, y = 0.0, content = [leg_shape];
+
+let floor_face2 = Face<Floor> :  height = 1.0, content = [fl_group, bl_group, br_group, fr_group];
+let floor_face3 = Face<Floor> : offset = 0.55, height = 1.0, content = [table_shape];

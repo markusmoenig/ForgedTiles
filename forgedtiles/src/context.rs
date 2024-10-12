@@ -109,7 +109,7 @@ impl FTContext {
             NodeSubRole::Floor => {
                 hit.face = vec3f(tile_id.x + face_length, face_height, face_thickness);
                 (
-                    vec2f(p.x, p.z),
+                    vec2f(p.x, face_height - p.z),
                     vec2f(tile_id.x + half_length, face_height / 2.0),
                 )
             }
@@ -147,8 +147,10 @@ impl FTContext {
                     ],
                     face_thickness,
                 )
-                .clamp(0.0, face_thickness);
+                .clamp(0.0, 10.0);
         }
+
+        face_thickness /= 2.0;
 
         // Extrude in the direction of the face
         hit.distance = match &self.nodes[face_index as usize].sub_role {
@@ -182,11 +184,19 @@ impl FTContext {
                 dist_2d_min,
                 face_thickness,
             ),
-            NodeSubRole::Floor => op_extrusion_y(
-                p - vec3f(0.0, tile_id.y + face_thickness / 2.0, 0.0),
-                dist_2d_min,
-                face_thickness,
-            ),
+            NodeSubRole::Floor => {
+                let face_offset = self.nodes[face_index as usize]
+                    .values
+                    .get(FTValueRole::Offset, vec![0.0])[0];
+                max(
+                    op_extrusion_y(
+                        p - vec3f(0.0, tile_id.y + face_thickness / 2.0 + face_offset, 0.0),
+                        dist_2d_min,
+                        face_thickness,
+                    ),
+                    -p.y,
+                )
+            }
             _ => f32::MAX,
         };
         hit
@@ -255,6 +265,7 @@ impl FTContext {
         if self.nodes.is_empty() {
             return None;
         }
+
         let output = self.output.unwrap_or(self.nodes.len() - 1);
         let indices = if self.nodes[output].role != Face {
             vec![output as i32]
@@ -287,6 +298,9 @@ impl FTContext {
             ..Default::default()
         };
 
+        // To hide ugly diffs in 2D mode
+        hit.shape_adder = 0.02;
+
         // Scale down to one tile unit
         p.y *= face.y;
 
@@ -298,7 +312,11 @@ impl FTContext {
             self.distance(*index as usize, p, pos, &mut hit);
         }
 
-        if hit.distance < 0.0 {
+        if hit.is_cut_out {
+            return None;
+        }
+
+        if hit.distance <= 0.0 {
             if let Some(node) = hit.node {
                 if let Some(material) = self.nodes[node].material {
                     let col = self.nodes[material as usize]
@@ -326,7 +344,7 @@ impl FTContext {
             }
         }
 
-        None
+        Some([0, 0, 0, 255])
     }
 
     /// Render the output node into as 2D
@@ -697,8 +715,9 @@ impl FTContext {
         /// Adjust the distances for shapes
         #[inline(always)]
         fn adjust_distances(index: usize, distance: f32, hit: &mut FTHitStruct) {
-            if distance < 0.0 {
+            if distance <= 0.0 {
                 hit.distance = distance;
+                hit.is_cut_out = false;
             }
             if distance < hit.min_distance {
                 hit.min_distance = distance;
@@ -739,10 +758,16 @@ impl FTContext {
                     if self.meta_delete.contains(&hit.working_seed_id)
                         || self.meta_delete.contains(&hit.working_pattern_id)
                     {
+                        hit.is_cut_out = true;
                         return hit.distance;
                     }
-                    let length = self.get_value_default(index, FTValueRole::Length, vec![1.0])[0];
-                    let height = self.get_value_default(index, FTValueRole::Height, vec![1.0])[0];
+                    let mut length =
+                        self.get_value_default(index, FTValueRole::Length, vec![1.0])[0];
+                    let mut height =
+                        self.get_value_default(index, FTValueRole::Height, vec![1.0])[0];
+
+                    length += hit.shape_adder;
+                    height += hit.shape_adder;
                     // let rounding =
                     //     self.get_value_default(index, FTValueRole::Rounding, vec![0.0])[0];
                     let rounding = self.nodes[index].expressions.eval(
@@ -868,14 +893,6 @@ impl FTContext {
                             &mut cut_out_hit,
                         );
 
-                        // let cut_out = crate::sdf::sdf_box2d(
-                        //     p,
-                        //     group_pos + vec2f(length / 2.0, height / 2.0),
-                        //     length / 2.0,
-                        //     height / 2.0,
-                        //     0.0,
-                        // );
-
                         distance = max(hit.distance, -cut_out_distance);
                         hit.distance = distance;
 
@@ -886,18 +903,19 @@ impl FTContext {
                             hit.pattern_id = 0;
                             hit.seed = 0.0;
                             hit.seed_id = 0;
-                        }
-
-                        if !self.nodes[index].links.is_empty() {
-                            let content = self.nodes[index].links[0] as usize;
-                            if self.nodes[content].role == Shape {
-                                group_pos.x += cut_out_dim.x / 2.0;
-                                group_pos.y += cut_out_dim.y / 2.0;
-                            }
+                            hit.is_cut_out = true;
+                        } else {
+                            hit.is_cut_out = false;
                         }
                     }
 
                     for content in &self.nodes[index].links {
+                        let index = *content as usize;
+                        if self.nodes[index].role == Shape {
+                            let dim = self.get_dim_default(index);
+                            group_pos.x += dim.x / 2.0;
+                            group_pos.y += dim.y / 2.0;
+                        }
                         distance = self.distance(*content as usize, p, group_pos, hit);
                     }
 
