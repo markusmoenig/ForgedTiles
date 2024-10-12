@@ -299,7 +299,7 @@ impl FTContext {
         };
 
         // To hide ugly diffs in 2D mode
-        hit.shape_adder = 0.02;
+        hit.shape_adder = 0.025;
 
         // Scale down to one tile unit
         p.y *= face.y;
