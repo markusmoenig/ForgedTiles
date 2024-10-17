@@ -93,21 +93,21 @@ impl FTContext {
         let half_length = face_length / 2.0;
         let (p2d, pos) = match &self.nodes[face_index as usize].sub_role {
             NodeSubRole::MiddleX | NodeSubRole::Back | NodeSubRole::Front => {
-                hit.face = vec3f(tile_id.x + face_length, face_height, face_thickness);
+                hit.face = vec3f(face_length, face_height, face_thickness);
                 (
                     vec2f(p.x, p.y),
                     vec2f(tile_id.x + half_length, face_height / 2.0),
                 )
             }
             NodeSubRole::MiddleY | NodeSubRole::Left | NodeSubRole::Right => {
-                hit.face = vec3f(tile_id.y + face_length, face_height, face_thickness);
+                hit.face = vec3f(face_length, face_height, face_thickness);
                 (
                     vec2f(p.z, p.y),
                     vec2f(tile_id.y + half_length, face_height / 2.0),
                 )
             }
             NodeSubRole::Floor => {
-                hit.face = vec3f(tile_id.x + face_length, face_height, face_thickness);
+                hit.face = vec3f(face_length, face_height, face_thickness);
                 (
                     vec2f(p.x, face_height - p.z),
                     vec2f(tile_id.x + half_length, face_height / 2.0),
@@ -129,8 +129,8 @@ impl FTContext {
             hit.min_distance,
             crate::sdf::sdf_box2d(
                 p2d,
-                vec2f(hit.face.x / 2.0, hit.face.y / 2.0),
-                hit.face.x / 2.0,
+                vec2f(pos.x, hit.face.y / 2.0),
+                face_length / 2.0,
                 hit.face.y / 2.0,
                 0.0,
             ),
