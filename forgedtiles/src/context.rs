@@ -46,7 +46,13 @@ impl FTContext {
     }
 
     /// Get the distance to a face.
-    pub fn distance_to_face(&self, p: Vec3f, face_index: usize, tile_id: Vec2f) -> FTHitStruct {
+    pub fn distance_to_face(
+        &self,
+        p: Vec3f,
+        face_index: usize,
+        tile_id: Vec2f,
+        use_bbox: bool,
+    ) -> FTHitStruct {
         let mut hit = FTHitStruct {
             tile_id,
             ..Default::default()
@@ -116,25 +122,30 @@ impl FTContext {
             _ => (Vec2f::zero(), Vec2f::zero()),
         };
 
-        for index in indices {
-            if self.nodes[*index as usize].role == NodeRole::Pattern {
-                self.distance(*index as usize, p2d, Vec2f::zero(), &mut hit)
-            } else {
-                self.distance(*index as usize, p2d, pos, &mut hit)
-            };
+        let bbox_dist = crate::sdf::sdf_box2d(
+            p2d,
+            vec2f(pos.x, hit.face.y / 2.0),
+            face_length / 2.0,
+            hit.face.y / 2.0,
+            0.0,
+        );
+
+        if !use_bbox {
+            for index in indices {
+                if self.nodes[*index as usize].role == NodeRole::Pattern {
+                    self.distance(*index as usize, p2d, Vec2f::zero(), &mut hit)
+                } else {
+                    self.distance(*index as usize, p2d, pos, &mut hit)
+                };
+            }
         }
 
         // Clip 2D output to the face
-        let dist_2d_min = max(
-            hit.min_distance,
-            crate::sdf::sdf_box2d(
-                p2d,
-                vec2f(pos.x, hit.face.y / 2.0),
-                face_length / 2.0,
-                hit.face.y / 2.0,
-                0.0,
-            ),
-        );
+        let dist_2d_min = if use_bbox {
+            bbox_dist
+        } else {
+            max(hit.min_distance, bbox_dist)
+        };
 
         if let Some(node) = hit.node {
             face_thickness = self.nodes[node]
@@ -214,10 +225,19 @@ impl FTContext {
         let e3 = vec3f(e.y, e.x, e.y);
         let e4 = vec3f(e.x, e.x, e.x);
 
-        let n = e1 * self.distance_to_face(p + e1, face_index, tile_id).distance
-            + e2 * self.distance_to_face(p + e2, face_index, tile_id).distance
-            + e3 * self.distance_to_face(p + e3, face_index, tile_id).distance
-            + e4 * self.distance_to_face(p + e4, face_index, tile_id).distance;
+        let n = e1
+            * self
+                .distance_to_face(p + e1, face_index, tile_id, false)
+                .distance
+            + e2 * self
+                .distance_to_face(p + e2, face_index, tile_id, false)
+                .distance
+            + e3 * self
+                .distance_to_face(p + e3, face_index, tile_id, false)
+                .distance
+            + e4 * self
+                .distance_to_face(p + e4, face_index, tile_id, false)
+                .distance;
         normalize(n)
     }
 
@@ -319,6 +339,17 @@ impl FTContext {
         if hit.distance <= 0.0 {
             if let Some(node) = hit.node {
                 if let Some(material) = self.nodes[node].material {
+                    let spec_trans = self.nodes[material as usize].expressions.eval(
+                        FTExpressionRole::Transmission,
+                        vec![(FTExpressionParam::Hash, hit.pattern_hash)],
+                        0.0,
+                    );
+
+                    // Return transparent for transmissive materials
+                    if spec_trans > 0.5 {
+                        return None;
+                    }
+
                     let col = self.nodes[material as usize]
                         .values
                         .get(FTValueRole::Color, vec![0.5, 0.5, 0.5]);
@@ -531,9 +562,9 @@ impl FTContext {
                             for _ in 0..30 {
                                 let p = ray.at(t);
 
-                                let mut ft_hit = self.distance_to_face(p, 0, Vec2f::zero());
+                                let mut ft_hit = self.distance_to_face(p, 0, Vec2f::zero(), false);
                                 for face in 1..self.faces.len() {
-                                    let ft = self.distance_to_face(p, face, Vec2f::zero());
+                                    let ft = self.distance_to_face(p, face, Vec2f::zero(), false);
                                     if ft.distance < ft_hit.distance {
                                         ft_hit.clone_from(&ft);
                                     }
@@ -911,12 +942,14 @@ impl FTContext {
 
                     for content in &self.nodes[index].links {
                         let index = *content as usize;
+                        let old_group_pos = group_pos;
                         if self.nodes[index].role == Shape {
                             let dim = self.get_dim_default(index);
                             group_pos.x += dim.x / 2.0;
                             group_pos.y += dim.y / 2.0;
                         }
                         distance = self.distance(*content as usize, p, group_pos, hit);
+                        group_pos = old_group_pos;
                     }
 
                     hit.origin = old_origin;
