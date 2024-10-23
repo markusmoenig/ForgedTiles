@@ -107,6 +107,7 @@ impl FTContext {
             }
             NodeSubRole::MiddleY | NodeSubRole::Left | NodeSubRole::Right => {
                 hit.face = vec3f(face_length, face_height, face_thickness);
+                hit.tile_id = vec2f(hit.tile_id.y, hit.tile_id.x);
                 (
                     vec2f(p.z, p.y),
                     vec2f(tile_id.y + half_length, face_height / 2.0),
