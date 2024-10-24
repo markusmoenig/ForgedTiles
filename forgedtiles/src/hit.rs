@@ -30,6 +30,8 @@ pub struct FTHitStruct {
 
     pub is_cut_out: bool,
     pub shape_adder: f32,
+
+    pub group_uv: Vec2f,
 }
 
 impl Default for FTHitStruct {
@@ -68,6 +70,8 @@ impl FTHitStruct {
 
             is_cut_out: false,
             shape_adder: 0.0,
+
+            group_uv: Vec2f::zero(),
         }
     }
 }

@@ -323,6 +323,7 @@ impl Compiler {
                 } else if self.check(TokenType::Identifier)
                     || self.check(TokenType::LeftBracket)
                     || self.check(TokenType::HexColor)
+                    || self.check(TokenType::String)
                 {
                     let mut has_bracket = false;
                     if self.check(TokenType::LeftBracket) {
@@ -340,6 +341,15 @@ impl Compiler {
                             node.material = Some(*value as u8);
                         } else {
                             self.error_at_current(&format!("Unknown variable ('{}').", map_value));
+                        }
+                    } else if property == "texture" {
+                        self.advance();
+
+                        if map_value.to_lowercase() == "none" {
+                            continue;
+                        } else {
+                            node.map
+                                .insert("texture".to_string(), vec![map_value.replace("\"", "")]);
                         }
                     } else if property == "color" {
                         if self.check(TokenType::HexColor) {

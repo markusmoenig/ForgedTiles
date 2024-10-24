@@ -46,6 +46,8 @@ pub struct BSDFMaterial {
     pub ax: f32,
     pub ay: f32,
     pub medium: BSDFMedium,
+
+    pub texture: Option<String>,
 }
 
 impl Default for BSDFMaterial {
@@ -76,6 +78,7 @@ impl BSDFMaterial {
             ax: 0.0,
             ay: 0.0,
             medium: BSDFMedium::new(),
+            texture: None,
         }
     }
 
@@ -193,6 +196,14 @@ impl BSDFMaterial {
                     vec![(FTExpressionParam::Hash, hit.pattern_hash)],
                     1.5,
                 );
+                // Texture name
+                if let Some(texture_name) = ctx.nodes[material].map.get("texture") {
+                    if !texture_name.is_empty() {
+                        if let Some(texture) = texture_name.first() {
+                            mat.texture = Some(texture.clone());
+                        }
+                    }
+                }
             }
         }
 

@@ -929,6 +929,10 @@ impl FTContext {
                         hit.distance = distance;
 
                         if cut_out_distance < 0.0 {
+                            hit.group_uv = vec2f(
+                                (p.x - group_pos.x) / cut_out_dim.x,
+                                1.0 - (p.y - group_pos.y) / cut_out_dim.y,
+                            );
                             hit.min_distance = 0.001;
                             hit.node = None;
                             hit.pattern_hash = 0.0;
